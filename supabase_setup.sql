@@ -35,8 +35,9 @@ set status = case
   when status = 'reviewed' then 'Proses Investigasi'
   when status = 'resolved' then 'Telah Terbit'
   when status = 'Diarsipkan' then 'Arsip Internal'
-  else status
-end;
+  else 'Menunggu Verifikasi'
+end
+where status is null or status not in ('Menunggu Verifikasi', 'Proses Investigasi', 'Arsip Internal', 'Telah Terbit', 'Ditolak/Tidak Valid');
 
 create index if not exists idx_reports_created_at on public.reports (created_at desc);
 create index if not exists idx_reports_category on public.reports (category);
@@ -50,6 +51,12 @@ create table if not exists public.news_posts (
   content text not null,
   image_urls text[] not null default '{}'
 );
+
+grant usage on schema public to anon, authenticated;
+grant select on table public.news_posts to anon, authenticated;
+grant insert, update, delete on table public.news_posts to authenticated;
+
+notify pgrst, 'reload schema';
 
 create index if not exists idx_news_posts_created_at on public.news_posts (created_at desc);
 

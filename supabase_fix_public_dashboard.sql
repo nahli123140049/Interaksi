@@ -64,6 +64,12 @@ create table if not exists public.news_posts (
   image_urls text[] not null default '{}'
 );
 
+grant usage on schema public to anon, authenticated;
+grant select on table public.news_posts to anon, authenticated;
+grant insert, update, delete on table public.news_posts to authenticated;
+
+notify pgrst, 'reload schema';
+
 alter table public.news_posts enable row level security;
 
 drop policy if exists "public can read news" on public.news_posts;

@@ -76,6 +76,10 @@ function formatDate(value: string) {
   });
 }
 
+function isNewsTableMissingError(message: string) {
+  return /relation .*news_posts.* does not exist|Could not find the table 'public.news_posts' in the schema cache/i.test(message);
+}
+
 function getStatusMeta(status: string): StatusMeta {
   return statusMetaMap[status] ?? statusMetaMap['Menunggu Verifikasi'];
 }
@@ -109,9 +113,12 @@ function getRedaksiNote(data: Record<string, string> | null) {
 export default function PublicDashboardPage() {
   const [reports, setReports] = useState<PublicReport[]>([]);
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [newsImageIndexes, setNewsImageIndexes] = useState<Record<string, number>>({});
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
   const [showStatusGuide, setShowStatusGuide] = useState(false);
+  const [showStatusGuideModal, setShowStatusGuideModal] = useState(false);
   const [error, setError] = useState('');
   const [newsError, setNewsError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -176,7 +183,7 @@ export default function PublicDashboardPage() {
         .limit(6);
 
       if (result.error) {
-        if (/relation .*news_posts.* does not exist/i.test(result.error.message)) {
+        if (isNewsTableMissingError(result.error.message)) {
           setNewsError('Berita terkini belum aktif.');
           setNewsItems([]);
           return;
@@ -197,6 +204,28 @@ export default function PublicDashboardPage() {
   const visibleReports = useMemo(() => {
     return reports.filter((report) => categoryFilter === 'all' || report.category === categoryFilter);
   }, [reports, categoryFilter]);
+
+  const handlePrevNewsImage = (news: NewsItem) => {
+    const total = news.image_urls?.length ?? 0;
+    if (total <= 1) return;
+
+    setNewsImageIndexes((current) => {
+      const active = current[news.id] ?? 0;
+      const next = (active - 1 + total) % total;
+      return { ...current, [news.id]: next };
+    });
+  };
+
+  const handleNextNewsImage = (news: NewsItem) => {
+    const total = news.image_urls?.length ?? 0;
+    if (total <= 1) return;
+
+    setNewsImageIndexes((current) => {
+      const active = current[news.id] ?? 0;
+      const next = (active + 1) % total;
+      return { ...current, [news.id]: next };
+    });
+  };
 
   return (
     <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
@@ -242,12 +271,46 @@ export default function PublicDashboardPage() {
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {newsItems.map((news) => (
                 <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-                  {news.image_urls?.[0] && (
-                    <img src={news.image_urls[0]} alt={news.title} className="mb-3 h-40 w-full rounded-xl object-cover" />
+                  {news.image_urls && news.image_urls.length > 0 && (
+                    <div className="mb-3 overflow-hidden rounded-xl border border-slate-200">
+                      <img
+                        src={news.image_urls[newsImageIndexes[news.id] ?? 0]}
+                        alt={news.title}
+                        className="h-40 w-full object-cover"
+                      />
+                      {news.image_urls.length > 1 && (
+                        <div className="flex items-center justify-between bg-white px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePrevNewsImage(news)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                          >
+                            Sebelumnya
+                          </button>
+                          <span className="text-xs text-slate-500">
+                            {(newsImageIndexes[news.id] ?? 0) + 1}/{news.image_urls.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleNextNewsImage(news)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                          >
+                            Berikutnya
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{formatDate(news.created_at)}</p>
                   <h3 className="mt-2 text-lg font-bold text-navy-950">{news.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">{news.summary || news.content}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{news.summary || (news.content.length > 180 ? `${news.content.slice(0, 180)}...` : news.content)}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedNews(news)}
+                    className="mt-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                  >
+                    Baca Berita Lengkap
+                  </button>
                 </article>
               ))}
             </div>
@@ -281,6 +344,13 @@ export default function PublicDashboardPage() {
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
               >
                 {showStatusGuide ? 'Tutup Arti Status' : 'Lihat Arti Status'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowStatusGuideModal(true)}
+                className="rounded-full bg-navy-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-800"
+              >
+                Detail Arti Status
               </button>
             </div>
           </div>
@@ -384,6 +454,13 @@ export default function PublicDashboardPage() {
                   <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Status</div>
                   <div className="mt-2"><StatusBadge status={selectedReport.status} /></div>
                   <p className="mt-2 text-xs text-slate-500">{getStatusMeta(selectedReport.status).description}</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowStatusGuideModal(true)}
+                    className="mt-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                  >
+                    Lihat Detail Arti Status
+                  </button>
                 </div>
                 <InfoRow label="Kategori" value={categoryLabels[selectedReport.category] ?? selectedReport.category} />
                 <InfoRow label="Isi Aspirasi" value={selectedReport.description} />
@@ -407,6 +484,81 @@ export default function PublicDashboardPage() {
                   Nama pengirim tidak ditampilkan untuk menjaga kerahasiaan.
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedNews && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
+                <h3 className="mt-1 text-2xl font-bold text-navy-950">{selectedNews.title}</h3>
+                <p className="mt-1 text-sm text-slate-500">{formatDate(selectedNews.created_at)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedNews(null)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
+              >
+                Tutup
+              </button>
+            </div>
+
+            {selectedNews.image_urls && selectedNews.image_urls.length > 0 && (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {selectedNews.image_urls.map((url, index) => (
+                  <img key={`${selectedNews.id}-${index}`} src={url} alt={`Foto berita ${index + 1}`} className="h-52 w-full rounded-xl object-cover" />
+                ))}
+              </div>
+            )}
+
+            <div className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-800">{selectedNews.content}</div>
+          </div>
+        </div>
+      )}
+
+      {showStatusGuideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-3xl overflow-hidden rounded-[2rem] bg-white shadow-soft">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Panduan Status</p>
+                <h3 className="mt-1 text-xl font-bold text-navy-950">Arti Status Laporan</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStatusGuideModal(false)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
+              >
+                Tutup
+              </button>
+            </div>
+
+            <div className="overflow-x-auto p-4">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Makna buat Tim Redaksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {statusOptions.map((status) => {
+                    const meta = getStatusMeta(status);
+                    return (
+                      <tr key={status}>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{meta.description}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

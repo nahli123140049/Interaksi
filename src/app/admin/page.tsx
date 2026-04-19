@@ -89,6 +89,10 @@ function formatDate(value: string) {
   });
 }
 
+function isNewsTableMissingError(message: string) {
+  return /relation .*news_posts.* does not exist|Could not find the table 'public.news_posts' in the schema cache/i.test(message);
+}
+
 function getStatusMeta(status: string): StatusMeta {
   return statusMetaMap[status] ?? statusMetaMap['Menunggu Verifikasi'];
 }
@@ -116,7 +120,6 @@ export default function AdminPage() {
   const [statusDraft, setStatusDraft] = useState('Menunggu Verifikasi');
   const [redaksiNoteDraft, setRedaksiNoteDraft] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
-  const [showStatusGuide, setShowStatusGuide] = useState(false);
   const [authError, setAuthError] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -126,7 +129,10 @@ export default function AdminPage() {
   const [newsSummary, setNewsSummary] = useState('');
   const [newsContent, setNewsContent] = useState('');
   const [newsPhotos, setNewsPhotos] = useState<File[]>([]);
+  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
   const [savingNews, setSavingNews] = useState(false);
+  const [deletingNewsId, setDeletingNewsId] = useState<string | null>(null);
   const [newsError, setNewsError] = useState('');
   const [newsMessage, setNewsMessage] = useState('');
 
@@ -203,7 +209,7 @@ export default function AdminPage() {
       .order('created_at', { ascending: false });
 
     if (result.error) {
-      if (/relation .*news_posts.* does not exist/i.test(result.error.message)) {
+      if (isNewsTableMissingError(result.error.message)) {
         setNewsError('Tabel berita belum tersedia. Jalankan supabase_setup.sql terbaru untuk mengaktifkan Berita Terkini.');
         setNewsItems([]);
         return;
@@ -321,6 +327,7 @@ export default function AdminPage() {
     setAuthError('');
 
     try {
+      const cleanedStatus = statusDraft.trim();
       const updatedAdditionalData = {
         ...(selectedReport.additional_data ?? {}),
         redaksi_note: redaksiNoteDraft.trim()
@@ -328,11 +335,14 @@ export default function AdminPage() {
 
       const { error } = await supabase
         .from('reports')
-        .update({ status: statusDraft, additional_data: updatedAdditionalData })
+        .update({ status: cleanedStatus, additional_data: updatedAdditionalData })
         .eq('id', selectedReport.id);
 
       if (error) {
-        throw new Error(error.message);
+        const detailedMsg = error.message.includes('check constraint')
+          ? `${error.message} (Status: "${cleanedStatus}", length: ${cleanedStatus.length})`
+          : error.message;
+        throw new Error(detailedMsg);
       }
 
       setReports((current) =>
@@ -340,13 +350,13 @@ export default function AdminPage() {
           report.id === selectedReport.id
             ? {
                 ...report,
-                status: statusDraft,
+                status: cleanedStatus,
                 additional_data: updatedAdditionalData
               }
             : report
         )
       );
-      setSelectedReport({ ...selectedReport, status: statusDraft, additional_data: updatedAdditionalData });
+      setSelectedReport({ ...selectedReport, status: cleanedStatus, additional_data: updatedAdditionalData });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Gagal update status laporan.');
     } finally {
@@ -382,27 +392,93 @@ export default function AdminPage() {
         uploadedUrls.push(publicUrl);
       }
 
-      const insert = await supabase.from('news_posts').insert({
-        title: newsTitle.trim(),
-        summary: newsSummary.trim() || null,
-        content: newsContent.trim(),
-        image_urls: uploadedUrls
-      });
+      const mergedImageUrls = editingNewsId ? [...existingImageUrls, ...uploadedUrls] : uploadedUrls;
 
-      if (insert.error) {
-        throw new Error(insert.error.message);
+      if (editingNewsId) {
+        const update = await supabase
+          .from('news_posts')
+          .update({
+            title: newsTitle.trim(),
+            summary: newsSummary.trim() || null,
+            content: newsContent.trim(),
+            image_urls: mergedImageUrls
+          })
+          .eq('id', editingNewsId);
+
+        if (update.error) {
+          throw new Error(update.error.message);
+        }
+      } else {
+        const insert = await supabase.from('news_posts').insert({
+          title: newsTitle.trim(),
+          summary: newsSummary.trim() || null,
+          content: newsContent.trim(),
+          image_urls: mergedImageUrls
+        });
+
+        if (insert.error) {
+          throw new Error(insert.error.message);
+        }
       }
 
       setNewsTitle('');
       setNewsSummary('');
       setNewsContent('');
       setNewsPhotos([]);
-      setNewsMessage('Berita berhasil dipublikasikan.');
+      setEditingNewsId(null);
+      setExistingImageUrls([]);
+      setNewsMessage(editingNewsId ? 'Berita berhasil diperbarui.' : 'Berita berhasil dipublikasikan.');
       await fetchNews();
     } catch (error) {
       setNewsError(error instanceof Error ? error.message : 'Gagal menambahkan berita.');
     } finally {
       setSavingNews(false);
+    }
+  };
+
+  const handleEditNews = (news: NewsItem) => {
+    setEditingNewsId(news.id);
+    setNewsTitle(news.title);
+    setNewsSummary(news.summary ?? '');
+    setNewsContent(news.content);
+    setExistingImageUrls(news.image_urls ?? []);
+    setNewsPhotos([]);
+    setNewsError('');
+    setNewsMessage('Mode edit aktif. Simpan untuk memperbarui berita.');
+  };
+
+  const handleCancelEditNews = () => {
+    setEditingNewsId(null);
+    setNewsTitle('');
+    setNewsSummary('');
+    setNewsContent('');
+    setExistingImageUrls([]);
+    setNewsPhotos([]);
+    setNewsError('');
+    setNewsMessage('');
+  };
+
+  const handleDeleteNews = async (newsId: string) => {
+    setDeletingNewsId(newsId);
+    setNewsError('');
+    setNewsMessage('');
+
+    try {
+      const remove = await supabase.from('news_posts').delete().eq('id', newsId);
+
+      if (remove.error) {
+        throw new Error(remove.error.message);
+      }
+
+      setNewsItems((current) => current.filter((item) => item.id !== newsId));
+      if (editingNewsId === newsId) {
+        handleCancelEditNews();
+      }
+      setNewsMessage('Berita berhasil dihapus.');
+    } catch (error) {
+      setNewsError(error instanceof Error ? error.message : 'Gagal menghapus berita.');
+    } finally {
+      setDeletingNewsId(null);
     }
   };
 
@@ -532,41 +608,8 @@ export default function AdminPage() {
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => setShowStatusGuide((prev) => !prev)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-              >
-                {showStatusGuide ? 'Tutup Arti Status' : 'Lihat Arti Status'}
-              </button>
             </div>
           </div>
-
-          {showStatusGuide && (
-            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Status</th>
-                    <th className="px-4 py-3 font-semibold">Makna buat Tim Redaksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {statusOptions.map((status) => {
-                    const meta = getStatusMeta(status);
-                    return (
-                      <tr key={status}>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">{meta.description}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
 
           <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
             <div className="overflow-x-auto">
@@ -623,6 +666,9 @@ export default function AdminPage() {
           <div className="border-b border-slate-200/70 pb-5">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
             <h2 className="mt-1 text-2xl font-bold text-navy-950">Kelola berita dari hasil laporan</h2>
+            {editingNewsId && (
+              <p className="mt-2 text-sm text-navy-700">Sedang mengedit berita. Foto baru akan ditambahkan ke galeri yang sudah ada.</p>
+            )}
           </div>
 
           <form className="mt-6 space-y-4" onSubmit={handleCreateNews}>
@@ -661,18 +707,32 @@ export default function AdminPage() {
                 onChange={(event) => setNewsPhotos(Array.from(event.target.files ?? []))}
                 className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
               />
+              {existingImageUrls.length > 0 && (
+                <p className="text-xs text-slate-500">Foto tersimpan saat ini: {existingImageUrls.length}</p>
+              )}
             </div>
 
             {newsError && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{newsError}</div>}
             {newsMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{newsMessage}</div>}
 
-            <button
-              type="submit"
-              disabled={savingNews}
-              className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {savingNews ? 'Menyimpan berita...' : 'Publikasikan Berita'}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={savingNews}
+                className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {savingNews ? 'Menyimpan berita...' : editingNewsId ? 'Simpan Perubahan Berita' : 'Publikasikan Berita'}
+              </button>
+              {editingNewsId && (
+                <button
+                  type="button"
+                  onClick={handleCancelEditNews}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                >
+                  Batal Edit
+                </button>
+              )}
+            </div>
           </form>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -696,6 +756,23 @@ export default function AdminPage() {
                   {news.image_urls && news.image_urls.length > 1 && (
                     <p className="mt-2 text-xs text-slate-500">+{news.image_urls.length - 1} foto tambahan</p>
                   )}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditNews(news)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNews(news.id)}
+                      disabled={deletingNewsId === news.id}
+                      className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {deletingNewsId === news.id ? 'Menghapus...' : 'Hapus'}
+                    </button>
+                  </div>
                 </article>
               ))
             )}
@@ -742,7 +819,6 @@ export default function AdminPage() {
                   <div className="mt-2">
                     <StatusBadge status={statusDraft} />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">{getStatusMeta(statusDraft).description}</p>
 
                   <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Catatan Admin/Redaksi</label>
                   <textarea
