@@ -1,0 +1,315 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+
+type PublicReport = {
+  id: string;
+  created_at: string;
+  category: string;
+  prodi: string;
+  privacy: string;
+  description: string;
+  evidence_url: string | null;
+  status: string;
+  additional_data: Record<string, string> | null;
+};
+
+const categoryLabels: Record<string, string> = {
+  fasilitas: 'Fasilitas & Infrastruktur',
+  akademik: 'Isu Akademik & Birokrasi',
+  politik: 'Politik & Organisasi Kampus',
+  keamanan: 'Keamanan & Lingkungan'
+};
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  });
+}
+
+const additionalDataLabels: Record<string, string> = {
+  gedung_lokasi: 'Gedung/Lokasi',
+  jenis_kerusakan: 'Jenis Kerusakan',
+  pihak_terlibat: 'Pihak Terlibat',
+  kontak_saksi_cp: 'Kontak Saksi/CP',
+  waktu_kejadian: 'Waktu Kejadian',
+  detail_lokasi: 'Detail Lokasi'
+};
+
+function formatAdditionalDataLines(data: Record<string, string> | null) {
+  if (!data) return [] as Array<{ key: string; label: string; value: string }>;
+
+  return Object.entries(data)
+    .filter(([, value]) => String(value ?? '').trim().length > 0)
+    .map(([key, value]) => ({
+      key,
+      label: additionalDataLabels[key] ?? key.replaceAll('_', ' '),
+      value: String(value)
+    }));
+}
+
+export default function PublicDashboardPage() {
+  const [reports, setReports] = useState<PublicReport[]>([]);
+  const [hasStatusColumn, setHasStatusColumn] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadReports = async () => {
+      if (!isSupabaseConfigured) {
+        setError('Supabase belum dikonfigurasi.');
+        setLoading(false);
+        return;
+      }
+
+      const withStatusResult = await supabase
+        .from('reports')
+        .select('id, created_at, category, prodi, privacy, description, evidence_url, status, additional_data')
+        .order('created_at', { ascending: false });
+
+      if (!withStatusResult.error) {
+        setHasStatusColumn(true);
+        setReports((withStatusResult.data ?? []) as PublicReport[]);
+        setLoading(false);
+        return;
+      }
+
+      const missingStatus = /column\s+reports\.status\s+does not exist/i.test(withStatusResult.error.message);
+      if (!missingStatus) {
+        setError(withStatusResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      setHasStatusColumn(false);
+      const withoutStatusResult = await supabase
+        .from('reports')
+        .select('id, created_at, category, prodi, privacy, description, evidence_url, additional_data')
+        .order('created_at', { ascending: false });
+
+      if (withoutStatusResult.error) {
+        setError(withoutStatusResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      const normalizedReports = (withoutStatusResult.data ?? []).map((row) => ({
+        ...(row as Omit<PublicReport, 'status'>),
+        status: 'pending'
+      }));
+
+      setReports(normalizedReports as PublicReport[]);
+      setError('Kolom status belum ada. Semua laporan ditampilkan sebagai pending sampai migration dijalankan.');
+
+      setLoading(false);
+    };
+
+    loadReports();
+  }, []);
+
+  const visibleReports = useMemo(() => {
+    return reports.filter((report) => {
+      const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
+      const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
+      return matchesCategory && matchesStatus;
+    });
+  }, [reports, categoryFilter, statusFilter]);
+
+  return (
+    <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">INTERAKSI</p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Dashboard Laporan Publik</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+                Lihat laporan yang masuk, statusnya, kategori, isi ringkas, dan bukti foto. Identitas pengirim tidak ditampilkan di halaman ini.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+              >
+                Beranda
+              </Link>
+              <Link
+                href="/admin"
+                className="inline-flex items-center justify-center rounded-full bg-navy-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-navy-800"
+              >
+                Admin Dashboard
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+          <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Data Laporan</p>
+              <h2 className="mt-1 text-2xl font-bold text-navy-950">Cek laporan yang masuk</h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                title="Filter Kategori"
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+              >
+                <option value="all">Semua Kategori</option>
+                {Object.entries(categoryLabels).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                title="Filter Status"
+                disabled={!hasStatusColumn}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+              >
+                <option value="all">Semua Status</option>
+                <option value="pending">pending</option>
+                <option value="reviewed">reviewed</option>
+                <option value="resolved">resolved</option>
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="py-12 text-center text-sm text-slate-500">Memuat laporan...</div>
+          ) : error ? (
+            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          ) : (
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {visibleReports.length === 0 ? (
+                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                  Belum ada laporan pada filter yang dipilih.
+                </div>
+              ) : (
+                visibleReports.map((report) => (
+                  <button
+                    key={report.id}
+                    type="button"
+                    onClick={() => setSelectedReport(report)}
+                    className="text-left rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                  >
+                    <div className="space-y-3 text-sm text-slate-700">
+                      <div><span className="font-semibold text-slate-900">Waktu:</span> {formatDate(report.created_at)}</div>
+                      <div><span className="font-semibold text-slate-900">Status:</span> {report.status}</div>
+                      <div><span className="font-semibold text-slate-900">Kategori:</span> {categoryLabels[report.category] ?? report.category}</div>
+                      <div>
+                        <span className="font-semibold text-slate-900">Isi Laporan:</span>
+                        <p className="mt-1 leading-6 text-slate-700">{report.description}</p>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-900">Data Tambahan:</span>
+                        {formatAdditionalDataLines(report.additional_data).length > 0 ? (
+                          <div className="mt-2 space-y-1">
+                            {formatAdditionalDataLines(report.additional_data).map((item) => (
+                              <div key={item.key} className="text-slate-700">
+                                <span className="font-medium text-slate-900">{item.label}:</span> {item.value}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-slate-500">-</p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Detail Laporan Publik</p>
+                <h3 className="mt-1 text-2xl font-bold text-navy-950">{categoryLabels[selectedReport.category] ?? selectedReport.category}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReport(null)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
+              >
+                Tutup
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+              <div className="space-y-4">
+                <InfoRow label="Waktu" value={formatDate(selectedReport.created_at)} />
+                <InfoRow label="Status" value={selectedReport.status} />
+                <InfoRow label="Kategori" value={categoryLabels[selectedReport.category] ?? selectedReport.category} />
+                <InfoRow label="Isi Laporan" value={selectedReport.description} />
+                <AdditionalDataCard data={selectedReport.additional_data} />
+              </div>
+
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50">
+                  {selectedReport.evidence_url ? (
+                    <img src={selectedReport.evidence_url} alt="Bukti laporan" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                      Tidak ada bukti foto yang diunggah.
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-[1.5rem] border border-navy-100 bg-navy-50 p-4 text-sm text-navy-950">
+                  Nama pengirim tidak ditampilkan di dashboard ini.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function AdditionalDataCard({ data }: { data: Record<string, string> | null }) {
+  const lines = formatAdditionalDataLines(data);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Data Tambahan</div>
+      {lines.length === 0 ? (
+        <div className="mt-1 text-sm leading-6 text-slate-500">-</div>
+      ) : (
+        <div className="mt-2 space-y-1 text-sm leading-6 text-slate-800">
+          {lines.map((item) => (
+            <div key={item.key}>
+              <span className="font-semibold">{item.label}:</span> {item.value}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
+      <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{value}</div>
+    </div>
+  );
+}
