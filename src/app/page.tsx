@@ -91,7 +91,7 @@ export default function HomePage() {
                     </span>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-slate-600">{category.description}</p>
-                  <p className="mt-5 text-sm font-semibold text-navy-800">Buka formulir -></p>
+                  <p className="mt-5 text-sm font-semibold text-navy-800">Buka formulir -&gt;</p>
                 </Link>
               ))}
             </div>
