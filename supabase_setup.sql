@@ -14,20 +14,44 @@ create table if not exists public.reports (
   privacy text not null,
   description text not null,
   evidence_url text,
-  status text not null default 'pending',
+  status text not null default 'Menunggu Verifikasi',
   additional_data jsonb not null default '{}'::jsonb,
   constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan', 'lainnya')),
   constraint reports_privacy_check check (privacy in ('Publik', 'Rahasiakan Identitas')),
-  constraint reports_status_check check (status in ('pending', 'reviewed', 'resolved'))
+  constraint reports_status_check check (status in ('Menunggu Verifikasi', 'Proses Investigasi', 'Arsip Internal', 'Telah Terbit', 'Ditolak/Tidak Valid'))
 );
 
 alter table public.reports drop constraint if exists reports_category_check;
 alter table public.reports add constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan', 'lainnya'));
+alter table public.reports drop constraint if exists reports_status_check;
+alter table public.reports add constraint reports_status_check check (status in ('Menunggu Verifikasi', 'Proses Investigasi', 'Arsip Internal', 'Telah Terbit', 'Ditolak/Tidak Valid'));
 
-alter table public.reports add column if not exists status text not null default 'pending';
+alter table public.reports add column if not exists status text not null default 'Proses Verifikasi';
+alter table public.reports alter column status set default 'Menunggu Verifikasi';
+
+update public.reports
+set status = case
+  when status in ('pending', 'Proses Verifikasi') then 'Menunggu Verifikasi'
+  when status = 'reviewed' then 'Proses Investigasi'
+  when status = 'resolved' then 'Telah Terbit'
+  when status = 'Diarsipkan' then 'Arsip Internal'
+  else status
+end;
 
 create index if not exists idx_reports_created_at on public.reports (created_at desc);
 create index if not exists idx_reports_category on public.reports (category);
+
+-- 1b) Table news_posts (Berita Terkini)
+create table if not exists public.news_posts (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  title text not null,
+  summary text,
+  content text not null,
+  image_urls text[] not null default '{}'
+);
+
+create index if not exists idx_news_posts_created_at on public.news_posts (created_at desc);
 
 -- 2) RLS for reports
 alter table public.reports enable row level security;
@@ -39,6 +63,38 @@ on public.reports
 for insert
 to anon, authenticated
 with check (true);
+
+-- RLS for news_posts
+alter table public.news_posts enable row level security;
+
+drop policy if exists "public can read news" on public.news_posts;
+create policy "public can read news"
+on public.news_posts
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "authenticated can insert news" on public.news_posts;
+create policy "authenticated can insert news"
+on public.news_posts
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "authenticated can update news" on public.news_posts;
+create policy "authenticated can update news"
+on public.news_posts
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "authenticated can delete news" on public.news_posts;
+create policy "authenticated can delete news"
+on public.news_posts
+for delete
+to authenticated
+using (true);
 
 -- Hanya user login yang boleh lihat semua laporan (untuk admin dashboard)
 drop policy if exists "authenticated can read reports" on public.reports;

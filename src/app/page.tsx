@@ -81,7 +81,7 @@ export default function HomePage() {
           <div className="space-y-8">
             <div className="space-y-6">
               <span className="inline-flex items-center rounded-full border border-navy-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-navy-800 shadow-card">
-                Portal Laporan Kampus
+                Kotak Suara Mahasiswa
               </span>
               <div className="space-y-4">
                 <h2 className="max-w-3xl text-4xl font-bold tracking-tight text-navy-950 md:text-6xl">

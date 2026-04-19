@@ -16,6 +16,51 @@ type PublicReport = {
   additional_data: Record<string, string> | null;
 };
 
+type NewsItem = {
+  id: string;
+  created_at: string;
+  title: string;
+  summary: string | null;
+  content: string;
+  image_urls: string[] | null;
+};
+
+type StatusMeta = {
+  label: string;
+  description: string;
+  badgeClass: string;
+};
+
+const statusMetaMap: Record<string, StatusMeta> = {
+  'Menunggu Verifikasi': {
+    label: 'Menunggu Verifikasi',
+    description: 'Laporan baru masuk, belum disentuh.',
+    badgeClass: 'border border-amber-200 bg-amber-50 text-amber-800'
+  },
+  'Proses Investigasi': {
+    label: 'Proses Investigasi',
+    description: 'Reporter lagi cek lapangan atau wawancara saksi.',
+    badgeClass: 'border border-blue-200 bg-blue-50 text-blue-800'
+  },
+  'Arsip Internal': {
+    label: 'Arsip Internal',
+    description: 'Valid, tapi cuma buat simpenan data (tidak terbit).',
+    badgeClass: 'border border-slate-200 bg-slate-100 text-slate-700'
+  },
+  'Telah Terbit': {
+    label: 'Telah Terbit',
+    description: 'Sudah jadi berita di web/IG INTERAKSI.',
+    badgeClass: 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+  },
+  'Ditolak/Tidak Valid': {
+    label: 'Ditolak/Tidak Valid',
+    description: 'Laporan ngawur atau tanpa bukti sama sekali.',
+    badgeClass: 'border border-rose-200 bg-rose-50 text-rose-800'
+  }
+};
+
+const statusOptions = Object.keys(statusMetaMap);
+
 const categoryLabels: Record<string, string> = {
   fasilitas: 'Fasilitas & Infrastruktur',
   akademik: 'Isu Akademik & Birokrasi',
@@ -29,6 +74,10 @@ function formatDate(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short'
   });
+}
+
+function getStatusMeta(status: string): StatusMeta {
+  return statusMetaMap[status] ?? statusMetaMap['Menunggu Verifikasi'];
 }
 
 const additionalDataLabels: Record<string, string> = {
@@ -53,11 +102,18 @@ function formatAdditionalDataLines(data: Record<string, string> | null) {
     }));
 }
 
+function getRedaksiNote(data: Record<string, string> | null) {
+  return String(data?.redaksi_note ?? '').trim();
+}
+
 export default function PublicDashboardPage() {
   const [reports, setReports] = useState<PublicReport[]>([]);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
+  const [showStatusGuide, setShowStatusGuide] = useState(false);
   const [error, setError] = useState('');
+  const [newsError, setNewsError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -99,7 +155,7 @@ export default function PublicDashboardPage() {
 
       const normalizedReports = (withoutStatusResult.data ?? []).map((row) => ({
         ...(row as Omit<PublicReport, 'status'>),
-        status: 'pending'
+        status: 'Menunggu Verifikasi'
       }));
 
       setReports(normalizedReports as PublicReport[]);
@@ -109,6 +165,33 @@ export default function PublicDashboardPage() {
     };
 
     loadReports();
+  }, []);
+
+  useEffect(() => {
+    const loadNews = async () => {
+      const result = await supabase
+        .from('news_posts')
+        .select('id, created_at, title, summary, content, image_urls')
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+      if (result.error) {
+        if (/relation .*news_posts.* does not exist/i.test(result.error.message)) {
+          setNewsError('Berita terkini belum aktif.');
+          setNewsItems([]);
+          return;
+        }
+
+        setNewsError(result.error.message);
+        setNewsItems([]);
+        return;
+      }
+
+      setNewsError('');
+      setNewsItems((result.data ?? []) as NewsItem[]);
+    };
+
+    loadNews();
   }, []);
 
   const visibleReports = useMemo(() => {
@@ -146,6 +229,32 @@ export default function PublicDashboardPage() {
         </header>
 
         <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+          <div className="border-b border-slate-200/70 pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
+            <h2 className="mt-1 text-2xl font-bold text-navy-950">Perkembangan terbaru dari tim redaksi</h2>
+          </div>
+
+          {newsError ? (
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{newsError}</div>
+          ) : newsItems.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">Belum ada berita terbaru.</div>
+          ) : (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {newsItems.map((news) => (
+                <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+                  {news.image_urls?.[0] && (
+                    <img src={news.image_urls[0]} alt={news.title} className="mb-3 h-40 w-full rounded-xl object-cover" />
+                  )}
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{formatDate(news.created_at)}</p>
+                  <h3 className="mt-2 text-lg font-bold text-navy-950">{news.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{news.summary || news.content}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Aspirasi Masuk</p>
@@ -166,8 +275,41 @@ export default function PublicDashboardPage() {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => setShowStatusGuide((prev) => !prev)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+              >
+                {showStatusGuide ? 'Tutup Arti Status' : 'Lihat Arti Status'}
+              </button>
             </div>
           </div>
+
+          {showStatusGuide && (
+            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Makna buat Tim Redaksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {statusOptions.map((status) => {
+                    const meta = getStatusMeta(status);
+                    return (
+                      <tr key={status}>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{meta.description}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {loading ? (
             <div className="py-12 text-center text-sm text-slate-500">Memuat laporan...</div>
@@ -189,6 +331,7 @@ export default function PublicDashboardPage() {
                   >
                     <div className="space-y-3 text-sm text-slate-700">
                       <div><span className="font-semibold text-slate-900">Waktu:</span> {formatDate(report.created_at)}</div>
+                      <div><span className="font-semibold text-slate-900">Status:</span> <StatusBadge status={report.status} /></div>
                       <div><span className="font-semibold text-slate-900">Kategori:</span> {categoryLabels[report.category] ?? report.category}</div>
                       <div>
                         <span className="font-semibold text-slate-900">Isi Aspirasi:</span>
@@ -237,8 +380,16 @@ export default function PublicDashboardPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
               <div className="space-y-4">
                 <InfoRow label="Waktu" value={formatDate(selectedReport.created_at)} />
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Status</div>
+                  <div className="mt-2"><StatusBadge status={selectedReport.status} /></div>
+                  <p className="mt-2 text-xs text-slate-500">{getStatusMeta(selectedReport.status).description}</p>
+                </div>
                 <InfoRow label="Kategori" value={categoryLabels[selectedReport.category] ?? selectedReport.category} />
                 <InfoRow label="Isi Aspirasi" value={selectedReport.description} />
+                {getRedaksiNote(selectedReport.additional_data) && (
+                  <InfoRow label="Catatan Admin/Redaksi" value={getRedaksiNote(selectedReport.additional_data)} />
+                )}
                 <AdditionalDataCard data={selectedReport.additional_data} />
               </div>
 
@@ -253,7 +404,7 @@ export default function PublicDashboardPage() {
                   )}
                 </div>
                 <div className="rounded-[1.5rem] border border-navy-100 bg-navy-50 p-4 text-sm text-navy-950">
-                  Nama pengirim tidak ditampilkan di dashboard ini.
+                  Nama pengirim tidak ditampilkan untuk menjaga kerahasiaan.
                 </div>
               </div>
             </div>
@@ -265,7 +416,7 @@ export default function PublicDashboardPage() {
 }
 
 function AdditionalDataCard({ data }: { data: Record<string, string> | null }) {
-  const lines = formatAdditionalDataLines(data);
+  const lines = formatAdditionalDataLines(data).filter((item) => item.key !== 'redaksi_note');
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -283,6 +434,11 @@ function AdditionalDataCard({ data }: { data: Record<string, string> | null }) {
       )}
     </div>
   );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const meta = getStatusMeta(status);
+  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

@@ -241,11 +241,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
               </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
-              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-100">Penyimpanan Data</div>
-              <div className="mt-3 text-2xl font-bold">Supabase</div>
-              <p className="mt-2 text-sm leading-6 text-blue-50/80">Laporan tersimpan ke tabel reports, bukti foto masuk bucket evidence.</p>
-            </div>
+            
           </div>
         </section>
 
@@ -369,7 +365,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
                 onChange={(event) => updateField('buktiFoto', event.target.files?.[0] ?? null)}
                 className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
               />
-              <p className="text-xs leading-5 text-slate-500">Bukti akan diunggah ke bucket Supabase Storage bernama evidence.</p>
+              <p className="text-xs leading-5 text-slate-500">INTERAKSI menjamin kerahasiaan identitas informan sesuai dengan UU Pers No. 40 Tahun 1999 dan Kode Etik Jurnalistik.</p>
             </div>
 
             {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -381,7 +377,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
                 disabled={isSubmitting}
                 className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {isSubmitting ? 'Mengirim laporan...' : 'Kirim Laporan'}
+                {isSubmitting ? 'Mengirim laporan...' : 'Sampaikan Aspirasi'}
               </button>
               <button
                 type="button"

@@ -18,11 +18,68 @@ type ReportItem = {
   additional_data: Record<string, string> | null;
 };
 
+type NewsItem = {
+  id: string;
+  created_at: string;
+  title: string;
+  summary: string | null;
+  content: string;
+  image_urls: string[] | null;
+};
+
+type StatusMeta = {
+  label: string;
+  description: string;
+  badgeClass: string;
+};
+
+const statusMetaMap: Record<string, StatusMeta> = {
+  'Menunggu Verifikasi': {
+    label: 'Menunggu Verifikasi',
+    description: 'Laporan baru masuk, belum disentuh.',
+    badgeClass: 'border border-amber-200 bg-amber-50 text-amber-800'
+  },
+  'Proses Investigasi': {
+    label: 'Proses Investigasi',
+    description: 'Reporter lagi cek lapangan atau wawancara saksi.',
+    badgeClass: 'border border-blue-200 bg-blue-50 text-blue-800'
+  },
+  'Arsip Internal': {
+    label: 'Arsip Internal',
+    description: 'Valid, tapi cuma buat simpenan data (tidak terbit).',
+    badgeClass: 'border border-slate-200 bg-slate-100 text-slate-700'
+  },
+  'Telah Terbit': {
+    label: 'Telah Terbit',
+    description: 'Sudah jadi berita di web/IG INTERAKSI.',
+    badgeClass: 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+  },
+  'Ditolak/Tidak Valid': {
+    label: 'Ditolak/Tidak Valid',
+    description: 'Laporan ngawur atau tanpa bukti sama sekali.',
+    badgeClass: 'border border-rose-200 bg-rose-50 text-rose-800'
+  }
+};
+
+const statusOptions = Object.keys(statusMetaMap);
+
+const additionalDataLabels: Record<string, string> = {
+  opini: 'Opini Pelapor',
+  redaksi_note: 'Catatan Admin/Redaksi',
+  gedung_lokasi: 'Gedung/Lokasi',
+  jenis_kerusakan: 'Jenis Kerusakan',
+  pihak_terlibat: 'Pihak Terlibat',
+  kontak_saksi_cp: 'Kontak Saksi/CP',
+  waktu_kejadian: 'Waktu Kejadian',
+  detail_lokasi: 'Detail Lokasi'
+};
+
 const categoryLabels: Record<string, string> = {
   fasilitas: 'Fasilitas & Infrastruktur',
   akademik: 'Isu Akademik & Birokrasi',
   politik: 'Politik & Organisasi Kampus',
-  keamanan: 'Keamanan & Lingkungan'
+  keamanan: 'Keamanan & Lingkungan',
+  lainnya: 'Pelaporan Lainnya'
 };
 
 function formatDate(value: string) {
@@ -30,6 +87,22 @@ function formatDate(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short'
   });
+}
+
+function getStatusMeta(status: string): StatusMeta {
+  return statusMetaMap[status] ?? statusMetaMap['Menunggu Verifikasi'];
+}
+
+function formatAdditionalDataLines(data: Record<string, string> | null, excludedKeys: string[] = []) {
+  if (!data) return [] as Array<{ key: string; label: string; value: string }>;
+
+  return Object.entries(data)
+    .filter(([key, value]) => !excludedKeys.includes(key) && String(value ?? '').trim().length > 0)
+    .map(([key, value]) => ({
+      key,
+      label: additionalDataLabels[key] ?? key.replaceAll('_', ' '),
+      value: String(value)
+    }));
 }
 
 export default function AdminPage() {
@@ -40,12 +113,22 @@ export default function AdminPage() {
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
-  const [statusDraft, setStatusDraft] = useState('pending');
+  const [statusDraft, setStatusDraft] = useState('Menunggu Verifikasi');
+  const [redaksiNoteDraft, setRedaksiNoteDraft] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
+  const [showStatusGuide, setShowStatusGuide] = useState(false);
   const [authError, setAuthError] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [newsTitle, setNewsTitle] = useState('');
+  const [newsSummary, setNewsSummary] = useState('');
+  const [newsContent, setNewsContent] = useState('');
+  const [newsPhotos, setNewsPhotos] = useState<File[]>([]);
+  const [savingNews, setSavingNews] = useState(false);
+  const [newsError, setNewsError] = useState('');
+  const [newsMessage, setNewsMessage] = useState('');
 
   const allowedAdminEmails = useMemo(() => {
     const rawEmails = process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '';
@@ -106,11 +189,33 @@ export default function AdminPage() {
 
     const normalizedReports = (withoutStatusResult.data ?? []).map((row) => ({
       ...(row as Omit<ReportItem, 'status'>),
-      status: 'pending'
+      status: 'Menunggu Verifikasi'
     }));
 
     setReports(normalizedReports as ReportItem[]);
     setAuthError('Kolom status belum ada. Jalankan ulang SQL setup agar admin bisa update status.');
+  };
+
+  const fetchNews = async () => {
+    const result = await supabase
+      .from('news_posts')
+      .select('id, created_at, title, summary, content, image_urls')
+      .order('created_at', { ascending: false });
+
+    if (result.error) {
+      if (/relation .*news_posts.* does not exist/i.test(result.error.message)) {
+        setNewsError('Tabel berita belum tersedia. Jalankan supabase_setup.sql terbaru untuk mengaktifkan Berita Terkini.');
+        setNewsItems([]);
+        return;
+      }
+
+      setNewsError(result.error.message);
+      setNewsItems([]);
+      return;
+    }
+
+    setNewsError('');
+    setNewsItems((result.data ?? []) as NewsItem[]);
   };
 
   useEffect(() => {
@@ -130,6 +235,7 @@ export default function AdminPage() {
 
         if (hasSession && authorized) {
           await fetchReports();
+          await fetchNews();
         } else if (hasSession && !authorized) {
           await handleUnauthorizedSession();
         }
@@ -154,10 +260,12 @@ export default function AdminPage() {
 
         if (session && authorized) {
           await fetchReports();
+          await fetchNews();
         } else if (session && !authorized) {
           await handleUnauthorizedSession();
         } else {
           setReports([]);
+          setNewsItems([]);
         }
       } catch (error) {
         setAuthError(error instanceof Error ? error.message : 'Terjadi kesalahan saat sinkronisasi sesi.');
@@ -202,7 +310,8 @@ export default function AdminPage() {
 
   const openDetail = (report: ReportItem) => {
     setSelectedReport(report);
-    setStatusDraft(report.status ?? 'pending');
+    setStatusDraft(report.status ?? 'Menunggu Verifikasi');
+    setRedaksiNoteDraft(String(report.additional_data?.redaksi_note ?? ''));
   };
 
   const saveStatus = async () => {
@@ -212,9 +321,14 @@ export default function AdminPage() {
     setAuthError('');
 
     try {
+      const updatedAdditionalData = {
+        ...(selectedReport.additional_data ?? {}),
+        redaksi_note: redaksiNoteDraft.trim()
+      };
+
       const { error } = await supabase
         .from('reports')
-        .update({ status: statusDraft })
+        .update({ status: statusDraft, additional_data: updatedAdditionalData })
         .eq('id', selectedReport.id);
 
       if (error) {
@@ -222,13 +336,73 @@ export default function AdminPage() {
       }
 
       setReports((current) =>
-        current.map((report) => (report.id === selectedReport.id ? { ...report, status: statusDraft } : report))
+        current.map((report) =>
+          report.id === selectedReport.id
+            ? {
+                ...report,
+                status: statusDraft,
+                additional_data: updatedAdditionalData
+              }
+            : report
+        )
       );
-      setSelectedReport({ ...selectedReport, status: statusDraft });
+      setSelectedReport({ ...selectedReport, status: statusDraft, additional_data: updatedAdditionalData });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Gagal update status laporan.');
     } finally {
       setSavingStatus(false);
+    }
+  };
+
+  const handleCreateNews = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setNewsError('');
+    setNewsMessage('');
+
+    if (!newsTitle.trim() || !newsContent.trim()) {
+      setNewsError('Judul dan isi berita wajib diisi.');
+      return;
+    }
+
+    setSavingNews(true);
+
+    try {
+      const uploadedUrls: string[] = [];
+
+      for (const photo of newsPhotos) {
+        const extension = photo.name.split('.').pop() ?? 'jpg';
+        const fileName = `news/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+        const upload = await supabase.storage.from('evidence').upload(fileName, photo, { upsert: false });
+
+        if (upload.error) {
+          throw new Error(`Gagal upload foto berita: ${upload.error.message}`);
+        }
+
+        const publicUrl = supabase.storage.from('evidence').getPublicUrl(fileName).data.publicUrl;
+        uploadedUrls.push(publicUrl);
+      }
+
+      const insert = await supabase.from('news_posts').insert({
+        title: newsTitle.trim(),
+        summary: newsSummary.trim() || null,
+        content: newsContent.trim(),
+        image_urls: uploadedUrls
+      });
+
+      if (insert.error) {
+        throw new Error(insert.error.message);
+      }
+
+      setNewsTitle('');
+      setNewsSummary('');
+      setNewsContent('');
+      setNewsPhotos([]);
+      setNewsMessage('Berita berhasil dipublikasikan.');
+      await fetchNews();
+    } catch (error) {
+      setNewsError(error instanceof Error ? error.message : 'Gagal menambahkan berita.');
+    } finally {
+      setSavingNews(false);
     }
   };
 
@@ -249,11 +423,9 @@ export default function AdminPage() {
         <section className="glass-panel w-full max-w-lg rounded-[2rem] p-8 shadow-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">Admin Access</p>
           <h1 className="mt-3 text-3xl font-bold text-navy-950">Login Admin INTERAKSI</h1>
-          <p className="mt-4 text-sm leading-7 text-slate-600">Masuk dengan Email/Password menggunakan Supabase Auth.</p>
+          <p className="mt-4 text-sm leading-7 text-slate-600">Masuk dengan Email/Password.</p>
 
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            Akses dashboard dibatasi ke email admin yang kamu daftar di <span className="font-semibold">NEXT_PUBLIC_ADMIN_EMAILS</span>.
-          </div>
+         
 
           {!isSupabaseConfigured && (
             <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -305,7 +477,7 @@ export default function AdminPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">INTERAKSI Admin</p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Dashboard Laporan Mahasiswa</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantau semua laporan dari tabel reports dan lihat bukti foto unggahan.</p>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantau laporan, atur status redaksi, isi catatan tindak lanjut, dan terbitkan berita terkini.</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -326,11 +498,7 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {!isAuthorized && (
-          <section className="rounded-[2rem] border border-amber-200 bg-amber-50 px-6 py-5 text-sm text-amber-800 shadow-soft">
-            Akses dashboard belum diizinkan untuk sesi ini. Pastikan email akun login ada di <span className="font-semibold">NEXT_PUBLIC_ADMIN_EMAILS</span>.
-          </section>
-        )}
+        
 
         <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
           {authError && (
@@ -346,10 +514,10 @@ export default function AdminPage() {
           <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Data Reports</p>
-              <h2 className="mt-1 text-2xl font-bold text-navy-950">Semua data dari Supabase</h2>
+              <h2 className="mt-1 text-2xl font-bold text-navy-950">Semua laporan masuk</h2>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <label className="text-sm font-semibold text-slate-600">Filter Kategori</label>
               <select
                 value={categoryFilter}
@@ -364,8 +532,41 @@ export default function AdminPage() {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => setShowStatusGuide((prev) => !prev)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+              >
+                {showStatusGuide ? 'Tutup Arti Status' : 'Lihat Arti Status'}
+              </button>
             </div>
           </div>
+
+          {showStatusGuide && (
+            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Makna buat Tim Redaksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {statusOptions.map((status) => {
+                    const meta = getStatusMeta(status);
+                    return (
+                      <tr key={status}>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{meta.description}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
             <div className="overflow-x-auto">
@@ -375,6 +576,7 @@ export default function AdminPage() {
                     <th className="px-5 py-4 font-semibold">Timestamp</th>
                     <th className="px-5 py-4 font-semibold">Category</th>
                     <th className="px-5 py-4 font-semibold">Reporter</th>
+                    <th className="px-5 py-4 font-semibold">Status</th>
                     <th className="px-5 py-4 font-semibold">Status Privasi</th>
                     <th className="px-5 py-4 font-semibold">Aksi</th>
                   </tr>
@@ -382,7 +584,7 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-slate-200 bg-white">
                   {visibleReports.length === 0 ? (
                     <tr>
-                      <td className="px-5 py-8 text-sm text-slate-500" colSpan={5}>
+                      <td className="px-5 py-8 text-sm text-slate-500" colSpan={6}>
                         Belum ada laporan untuk filter yang dipilih.
                       </td>
                     </tr>
@@ -394,6 +596,9 @@ export default function AdminPage() {
                         <td className="px-5 py-4 text-slate-600">
                           <div className="font-medium text-slate-900">{report.reporter_name || 'Anonim'}</div>
                           <div className="text-xs text-slate-500">{report.prodi}</div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <StatusBadge status={report.status} />
                         </td>
                         <td className="px-5 py-4 text-slate-600">{report.privacy}</td>
                         <td className="px-5 py-4">
@@ -411,6 +616,89 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+
+        <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+          <div className="border-b border-slate-200/70 pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
+            <h2 className="mt-1 text-2xl font-bold text-navy-950">Kelola berita dari hasil laporan</h2>
+          </div>
+
+          <form className="mt-6 space-y-4" onSubmit={handleCreateNews}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <input
+                type="text"
+                value={newsTitle}
+                onChange={(event) => setNewsTitle(event.target.value)}
+                placeholder="Judul berita"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+              />
+              <input
+                type="text"
+                value={newsSummary}
+                onChange={(event) => setNewsSummary(event.target.value)}
+                placeholder="Ringkasan berita (opsional)"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+              />
+            </div>
+
+            <textarea
+              value={newsContent}
+              onChange={(event) => setNewsContent(event.target.value)}
+              rows={6}
+              placeholder="Isi berita lengkap"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+            />
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Foto Berita (bisa lebih dari satu)</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                title="Upload Foto Berita"
+                onChange={(event) => setNewsPhotos(Array.from(event.target.files ?? []))}
+                className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
+              />
+            </div>
+
+            {newsError && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{newsError}</div>}
+            {newsMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{newsMessage}</div>}
+
+            <button
+              type="submit"
+              disabled={savingNews}
+              className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {savingNews ? 'Menyimpan berita...' : 'Publikasikan Berita'}
+            </button>
+          </form>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {newsItems.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                Belum ada berita terkini yang dipublikasikan.
+              </div>
+            ) : (
+              newsItems.map((news) => (
+                <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+                  {news.image_urls?.[0] && (
+                    <img
+                      src={news.image_urls[0]}
+                      alt={news.title}
+                      className="mb-3 h-40 w-full rounded-xl object-cover"
+                    />
+                  )}
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{formatDate(news.created_at)}</p>
+                  <h3 className="mt-2 text-lg font-bold text-navy-950">{news.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{news.summary || news.content}</p>
+                  {news.image_urls && news.image_urls.length > 1 && (
+                    <p className="mt-2 text-xs text-slate-500">+{news.image_urls.length - 1} foto tambahan</p>
+                  )}
+                </article>
+              ))
+            )}
           </div>
         </section>
       </div>
@@ -447,10 +735,24 @@ export default function AdminPage() {
                     onChange={(event) => setStatusDraft(event.target.value)}
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
                   >
-                    <option value="pending">pending</option>
-                    <option value="reviewed">reviewed</option>
-                    <option value="resolved">resolved</option>
+                    {statusOptions.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
                   </select>
+                  <div className="mt-2">
+                    <StatusBadge status={statusDraft} />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">{getStatusMeta(statusDraft).description}</p>
+
+                  <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Catatan Admin/Redaksi</label>
+                  <textarea
+                    value={redaksiNoteDraft}
+                    onChange={(event) => setRedaksiNoteDraft(event.target.value)}
+                    rows={4}
+                    placeholder="Isi hasil verifikasi, temuan lapangan, atau catatan redaksi yang bisa dilihat user."
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+                  />
+
                   <button
                     type="button"
                     onClick={saveStatus}
@@ -461,7 +763,10 @@ export default function AdminPage() {
                   </button>
                 </div>
                 <InfoRow label="Deskripsi" value={selectedReport.description} />
-                <InfoRow label="Data Tambahan" value={selectedReport.additional_data ? JSON.stringify(selectedReport.additional_data, null, 2) : '-'} />
+                {String(selectedReport.additional_data?.opini ?? '').trim().length > 0 && (
+                  <InfoRow label="Opini Pelapor" value={String(selectedReport.additional_data?.opini)} />
+                )}
+                <AdditionalDataCard data={selectedReport.additional_data} />
               </div>
 
               <div className="space-y-4">
@@ -483,6 +788,33 @@ export default function AdminPage() {
         </div>
       )}
     </main>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const meta = getStatusMeta(status);
+
+  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>;
+}
+
+function AdditionalDataCard({ data }: { data: Record<string, string> | null }) {
+  const lines = formatAdditionalDataLines(data, ['opini', 'redaksi_note']);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Data Tambahan</div>
+      {lines.length === 0 ? (
+        <div className="mt-1 text-sm leading-6 text-slate-500">-</div>
+      ) : (
+        <div className="mt-2 space-y-1 text-sm leading-6 text-slate-800">
+          {lines.map((item) => (
+            <div key={item.key}>
+              <span className="font-semibold">{item.label}:</span> {item.value}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -7,6 +7,9 @@ alter table public.reports enable row level security;
 -- 1b) Pastikan kategori tambahan diizinkan
 alter table public.reports drop constraint if exists reports_category_check;
 alter table public.reports add constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan', 'lainnya'));
+alter table public.reports drop constraint if exists reports_status_check;
+alter table public.reports add constraint reports_status_check check (status in ('Menunggu Verifikasi', 'Proses Investigasi', 'Arsip Internal', 'Telah Terbit', 'Ditolak/Tidak Valid'));
+alter table public.reports alter column status set default 'Menunggu Verifikasi';
 
 -- 2) Hapus semua policy SELECT lama di public.reports
 -- Ini mencegah konflik dari policy lama dengan nama berbeda.
@@ -51,9 +54,50 @@ to authenticated
 using (true)
 with check (true);
 
--- 6) Cek cepat hasil policy aktif
+-- 6) Berita Terkini
+create table if not exists public.news_posts (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  title text not null,
+  summary text,
+  content text not null,
+  image_urls text[] not null default '{}'
+);
+
+alter table public.news_posts enable row level security;
+
+drop policy if exists "public can read news" on public.news_posts;
+create policy "public can read news"
+on public.news_posts
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "authenticated can insert news" on public.news_posts;
+create policy "authenticated can insert news"
+on public.news_posts
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "authenticated can update news" on public.news_posts;
+create policy "authenticated can update news"
+on public.news_posts
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "authenticated can delete news" on public.news_posts;
+create policy "authenticated can delete news"
+on public.news_posts
+for delete
+to authenticated
+using (true);
+
+-- 7) Cek cepat hasil policy aktif
 select schemaname, tablename, policyname, cmd, roles
 from pg_policies
 where schemaname = 'public'
-  and tablename = 'reports'
+  and tablename in ('reports', 'news_posts')
 order by cmd, policyname;
