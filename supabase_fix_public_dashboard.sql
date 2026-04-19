@@ -4,6 +4,10 @@
 -- 1) Pastikan RLS aktif (policy akan dipakai)
 alter table public.reports enable row level security;
 
+-- 1b) Pastikan kategori tambahan diizinkan
+alter table public.reports drop constraint if exists reports_category_check;
+alter table public.reports add constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan', 'lainnya'));
+
 -- 2) Hapus semua policy SELECT lama di public.reports
 -- Ini mencegah konflik dari policy lama dengan nama berbeda.
 do $$

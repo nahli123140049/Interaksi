@@ -16,10 +16,13 @@ create table if not exists public.reports (
   evidence_url text,
   status text not null default 'pending',
   additional_data jsonb not null default '{}'::jsonb,
-  constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan')),
+  constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan', 'lainnya')),
   constraint reports_privacy_check check (privacy in ('Publik', 'Rahasiakan Identitas')),
   constraint reports_status_check check (status in ('pending', 'reviewed', 'resolved'))
 );
+
+alter table public.reports drop constraint if exists reports_category_check;
+alter table public.reports add constraint reports_category_check check (category in ('fasilitas', 'akademik', 'politik', 'keamanan', 'lainnya'));
 
 alter table public.reports add column if not exists status text not null default 'pending';
 

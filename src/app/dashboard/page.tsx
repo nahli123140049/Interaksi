@@ -20,7 +20,8 @@ const categoryLabels: Record<string, string> = {
   fasilitas: 'Fasilitas & Infrastruktur',
   akademik: 'Isu Akademik & Birokrasi',
   politik: 'Politik & Organisasi Kampus',
-  keamanan: 'Keamanan & Lingkungan'
+  keamanan: 'Keamanan & Lingkungan',
+  lainnya: 'Pelaporan Lainnya'
 };
 
 function formatDate(value: string) {
@@ -31,6 +32,7 @@ function formatDate(value: string) {
 }
 
 const additionalDataLabels: Record<string, string> = {
+  opini: 'Opini / Catatan Redaksi',
   gedung_lokasi: 'Gedung/Lokasi',
   jenis_kerusakan: 'Jenis Kerusakan',
   pihak_terlibat: 'Pihak Terlibat',
@@ -53,9 +55,7 @@ function formatAdditionalDataLines(data: Record<string, string> | null) {
 
 export default function PublicDashboardPage() {
   const [reports, setReports] = useState<PublicReport[]>([]);
-  const [hasStatusColumn, setHasStatusColumn] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ export default function PublicDashboardPage() {
   useEffect(() => {
     const loadReports = async () => {
       if (!isSupabaseConfigured) {
-        setError('Supabase belum dikonfigurasi.');
+        setError('Sistem belum siap. Silakan coba lagi nanti.');
         setLoading(false);
         return;
       }
@@ -74,7 +74,6 @@ export default function PublicDashboardPage() {
         .order('created_at', { ascending: false });
 
       if (!withStatusResult.error) {
-        setHasStatusColumn(true);
         setReports((withStatusResult.data ?? []) as PublicReport[]);
         setLoading(false);
         return;
@@ -87,7 +86,6 @@ export default function PublicDashboardPage() {
         return;
       }
 
-      setHasStatusColumn(false);
       const withoutStatusResult = await supabase
         .from('reports')
         .select('id, created_at, category, prodi, privacy, description, evidence_url, additional_data')
@@ -105,7 +103,7 @@ export default function PublicDashboardPage() {
       }));
 
       setReports(normalizedReports as PublicReport[]);
-      setError('Kolom status belum ada. Semua laporan ditampilkan sebagai pending sampai migration dijalankan.');
+      setError('Ada pembaruan sistem yang belum lengkap. Data tetap bisa dibaca, tetapi beberapa detail pembaruan belum tampil penuh.');
 
       setLoading(false);
     };
@@ -114,12 +112,8 @@ export default function PublicDashboardPage() {
   }, []);
 
   const visibleReports = useMemo(() => {
-    return reports.filter((report) => {
-      const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
-      const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
-      return matchesCategory && matchesStatus;
-    });
-  }, [reports, categoryFilter, statusFilter]);
+    return reports.filter((report) => categoryFilter === 'all' || report.category === categoryFilter);
+  }, [reports, categoryFilter]);
 
   return (
     <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
@@ -128,9 +122,9 @@ export default function PublicDashboardPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">INTERAKSI</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Dashboard Laporan Publik</h1>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Ruang Aspirasi Publik</h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-                Lihat laporan yang masuk, statusnya, kategori, isi ringkas, dan bukti foto. Identitas pengirim tidak ditampilkan di halaman ini.
+                Jelajahi aspirasi yang masuk, baca isi laporan, dan lihat opini yang ingin dibagikan redaksi tanpa menampilkan identitas pengirim.
               </p>
             </div>
 
@@ -154,8 +148,8 @@ export default function PublicDashboardPage() {
         <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Data Laporan</p>
-              <h2 className="mt-1 text-2xl font-bold text-navy-950">Cek laporan yang masuk</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Aspirasi Masuk</p>
+              <h2 className="mt-1 text-2xl font-bold text-navy-950">Baca suara yang ingin disampaikan</h2>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -171,18 +165,6 @@ export default function PublicDashboardPage() {
                     {value}
                   </option>
                 ))}
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                title="Filter Status"
-                disabled={!hasStatusColumn}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-              >
-                <option value="all">Semua Status</option>
-                <option value="pending">pending</option>
-                <option value="reviewed">reviewed</option>
-                <option value="resolved">resolved</option>
               </select>
             </div>
           </div>
@@ -207,10 +189,9 @@ export default function PublicDashboardPage() {
                   >
                     <div className="space-y-3 text-sm text-slate-700">
                       <div><span className="font-semibold text-slate-900">Waktu:</span> {formatDate(report.created_at)}</div>
-                      <div><span className="font-semibold text-slate-900">Status:</span> {report.status}</div>
                       <div><span className="font-semibold text-slate-900">Kategori:</span> {categoryLabels[report.category] ?? report.category}</div>
                       <div>
-                        <span className="font-semibold text-slate-900">Isi Laporan:</span>
+                        <span className="font-semibold text-slate-900">Isi Aspirasi:</span>
                         <p className="mt-1 leading-6 text-slate-700">{report.description}</p>
                       </div>
                       <div>
@@ -256,9 +237,8 @@ export default function PublicDashboardPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
               <div className="space-y-4">
                 <InfoRow label="Waktu" value={formatDate(selectedReport.created_at)} />
-                <InfoRow label="Status" value={selectedReport.status} />
                 <InfoRow label="Kategori" value={categoryLabels[selectedReport.category] ?? selectedReport.category} />
-                <InfoRow label="Isi Laporan" value={selectedReport.description} />
+                <InfoRow label="Isi Aspirasi" value={selectedReport.description} />
                 <AdditionalDataCard data={selectedReport.additional_data} />
               </div>
 

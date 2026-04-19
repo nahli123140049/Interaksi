@@ -16,6 +16,7 @@ type FieldMap = {
   programStudiAngkatan: string;
   whatsapp: string;
   privacy: 'Publik' | 'Rahasiakan Identitas';
+  opini: string;
   deskripsiMasalah: string;
   gedungLokasi: string;
   jenisKerusakan: string;
@@ -46,6 +47,11 @@ const categoryConfig: Record<string, { title: string; subtitle: string; accent: 
     title: 'Keamanan & Lingkungan',
     subtitle: 'Untuk kejadian keamanan, area rawan, dan kondisi lingkungan kampus.',
     accent: 'from-emerald-600 to-navy-800'
+  },
+  lainnya: {
+    title: 'Pelaporan Lainnya',
+    subtitle: 'Untuk isu di luar empat kategori utama, termasuk masukan, kritik, atau opini yang ingin dikutip redaksi.',
+    accent: 'from-amber-500 to-navy-800'
   }
 };
 
@@ -54,6 +60,7 @@ const initialFormState: FieldMap = {
   programStudiAngkatan: '',
   whatsapp: '',
   privacy: 'Rahasiakan Identitas',
+  opini: '',
   deskripsiMasalah: '',
   gedungLokasi: '',
   jenisKerusakan: '',
@@ -65,28 +72,27 @@ const initialFormState: FieldMap = {
 };
 
 function getAdditionalData(category: string, form: FieldMap) {
-  if (category === 'fasilitas') {
-    return {
-      gedung_lokasi: form.gedungLokasi.trim(),
-      jenis_kerusakan: form.jenisKerusakan.trim()
-    };
-  }
-
-  if (category === 'politik') {
-    return {
-      pihak_terlibat: form.pihakTerlibat.trim(),
-      kontak_saksi_cp: form.kontakSaksi.trim()
-    };
-  }
-
-  if (category === 'keamanan') {
-    return {
-      waktu_kejadian: form.waktuKejadian.trim(),
-      detail_lokasi: form.detailLokasi.trim()
-    };
-  }
-
-  return {};
+  return {
+    opini: form.opini.trim(),
+    ...(category === 'fasilitas'
+      ? {
+          gedung_lokasi: form.gedungLokasi.trim(),
+          jenis_kerusakan: form.jenisKerusakan.trim()
+        }
+      : {}),
+    ...(category === 'politik'
+      ? {
+          pihak_terlibat: form.pihakTerlibat.trim(),
+          kontak_saksi_cp: form.kontakSaksi.trim()
+        }
+      : {}),
+    ...(category === 'keamanan'
+      ? {
+          waktu_kejadian: form.waktuKejadian.trim(),
+          detail_lokasi: form.detailLokasi.trim()
+        }
+      : {})
+  };
 }
 
 export default function ReportCategoryPage({ params }: ReportPageProps) {
@@ -98,6 +104,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
     if (category === 'fasilitas') return ['Gedung/Lokasi', 'Jenis Kerusakan'];
     if (category === 'politik') return ['Pihak Terlibat', 'Kontak Saksi/CP'];
     if (category === 'keamanan') return ['Waktu Kejadian', 'Detail Lokasi'];
+    if (category === 'lainnya') return ['Opini / Catatan Redaksi (opsional)'];
     return [] as string[];
   }, [category]);
 
@@ -125,6 +132,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
 
     if (category === 'keamanan' && (!form.waktuKejadian.trim() || !form.detailLokasi.trim())) {
       return 'Lengkapi Waktu Kejadian dan Detail Lokasi untuk kategori keamanan.';
+    }
+
+    if (form.opini.trim().length > 0 && form.opini.trim().length < 10) {
+      return 'Jika diisi, opini minimal 10 karakter agar layak dikutip.';
     }
 
     return '';
@@ -276,6 +287,13 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
                 options={['Publik', 'Rahasiakan Identitas']}
               />
             </div>
+
+            <TextareaField
+              label="Opini / Catatan Redaksi (opsional)"
+              value={form.opini}
+              onChange={(value) => updateField('opini', value)}
+              placeholder="Tulis opini, kutipan, atau sudut pandang yang boleh dikutip redaksi."
+            />
 
             {category === 'fasilitas' && (
               <div className="grid gap-5 md:grid-cols-2">
