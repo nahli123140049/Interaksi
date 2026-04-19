@@ -57,7 +57,7 @@ export default function AdminPage() {
 
   const isEmailAllowed = (email?: string | null) => {
     if (!allowedAdminEmails.length) {
-      return true;
+      return false;
     }
 
     return Boolean(email && allowedAdminEmails.includes(email.trim().toLowerCase()));
@@ -67,7 +67,11 @@ export default function AdminPage() {
     setIsAuthorized(false);
     setIsLoggedIn(false);
     setReports([]);
-    setAuthError('Akun ini tidak diizinkan mengakses dashboard admin.');
+    if (!allowedAdminEmails.length) {
+      setAuthError('Daftar email admin belum dikonfigurasi. Isi NEXT_PUBLIC_ADMIN_EMAILS terlebih dahulu.');
+    } else {
+      setAuthError('Akun ini tidak diizinkan mengakses dashboard admin.');
+    }
     await supabase.auth.signOut();
   };
 
@@ -171,18 +175,6 @@ export default function AdminPage() {
     return reports.filter((report) => report.category === categoryFilter);
   }, [categoryFilter, reports]);
 
-  const handleGoogleLogin = async () => {
-    setAuthError('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/admin` : undefined }
-    });
-
-    if (error) {
-      setAuthError(error.message);
-    }
-  };
-
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthError('');
@@ -257,7 +249,7 @@ export default function AdminPage() {
         <section className="glass-panel w-full max-w-lg rounded-[2rem] p-8 shadow-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">Admin Access</p>
           <h1 className="mt-3 text-3xl font-bold text-navy-950">Login Admin INTERAKSI</h1>
-          <p className="mt-4 text-sm leading-7 text-slate-600">Masuk dengan Google atau Email/Password menggunakan Supabase Auth.</p>
+          <p className="mt-4 text-sm leading-7 text-slate-600">Masuk dengan Email/Password menggunakan Supabase Auth.</p>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             Akses dashboard dibatasi ke email admin yang kamu daftar di <span className="font-semibold">NEXT_PUBLIC_ADMIN_EMAILS</span>.
@@ -271,17 +263,7 @@ export default function AdminPage() {
 
           {authError && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{authError}</div>}
 
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800"
-          >
-            Login dengan Google
-          </button>
-
-          <div className="my-5 text-center text-xs uppercase tracking-[0.2em] text-slate-400">Atau</div>
-
-          <form className="space-y-4" onSubmit={handleEmailLogin}>
+          <form className="mt-6 space-y-4" onSubmit={handleEmailLogin}>
             <input
               type="email"
               required
