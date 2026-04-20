@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
@@ -227,6 +227,99 @@ export default function PublicDashboardPage() {
     });
   };
 
+  const closeSelectedReport = useCallback((syncHistory = true) => {
+    setSelectedReport(null);
+
+    if (
+      syncHistory &&
+      typeof window !== 'undefined' &&
+      window.history.state &&
+      window.history.state.__modal === 'dashboard-report-detail'
+    ) {
+      window.history.back();
+    }
+  }, []);
+
+  const closeSelectedNews = useCallback((syncHistory = true) => {
+    setSelectedNews(null);
+
+    if (
+      syncHistory &&
+      typeof window !== 'undefined' &&
+      window.history.state &&
+      window.history.state.__modal === 'dashboard-news-detail'
+    ) {
+      window.history.back();
+    }
+  }, []);
+
+  const closeStatusGuideModal = useCallback((syncHistory = true) => {
+    setShowStatusGuideModal(false);
+
+    if (
+      syncHistory &&
+      typeof window !== 'undefined' &&
+      window.history.state &&
+      window.history.state.__modal === 'dashboard-status-guide'
+    ) {
+      window.history.back();
+    }
+  }, []);
+
+  useEffect(() => {
+    const topModal = showStatusGuideModal
+      ? 'dashboard-status-guide'
+      : selectedNews
+        ? 'dashboard-news-detail'
+        : selectedReport
+          ? 'dashboard-report-detail'
+          : null;
+
+    if (!topModal) return;
+
+    const closeTopModal = (syncHistory = true) => {
+      if (showStatusGuideModal) {
+        closeStatusGuideModal(syncHistory);
+        return;
+      }
+
+      if (selectedNews) {
+        closeSelectedNews(syncHistory);
+        return;
+      }
+
+      if (selectedReport) {
+        closeSelectedReport(syncHistory);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeTopModal();
+      }
+    };
+
+    const handlePopState = () => {
+      closeTopModal(false);
+    };
+
+    window.history.pushState({ __modal: topModal }, '', window.location.href);
+    window.addEventListener('keydown', handleEscape);
+    window.addEventListener('popstate', handlePopState, { once: true });
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [
+    closeSelectedNews,
+    closeSelectedReport,
+    closeStatusGuideModal,
+    selectedNews,
+    selectedReport,
+    showStatusGuideModal
+  ]);
+
   return (
     <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -276,7 +369,7 @@ export default function PublicDashboardPage() {
                       <img
                         src={news.image_urls[newsImageIndexes[news.id] ?? 0]}
                         alt={news.title}
-                        className="h-40 w-full object-cover"
+                        className="h-40 w-full bg-slate-100 object-contain"
                       />
                       {news.image_urls.length > 1 && (
                         <div className="flex items-center justify-between bg-white px-3 py-2">
@@ -431,7 +524,14 @@ export default function PublicDashboardPage() {
       </div>
 
       {selectedReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeSelectedReport();
+            }
+          }}
+        >
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
@@ -440,7 +540,7 @@ export default function PublicDashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedReport(null)}
+                onClick={() => closeSelectedReport()}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
               >
                 Tutup
@@ -490,7 +590,14 @@ export default function PublicDashboardPage() {
       )}
 
       {selectedNews && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeSelectedNews();
+            }
+          }}
+        >
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
@@ -500,7 +607,7 @@ export default function PublicDashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedNews(null)}
+                onClick={() => closeSelectedNews()}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
               >
                 Tutup
@@ -510,7 +617,7 @@ export default function PublicDashboardPage() {
             {selectedNews.image_urls && selectedNews.image_urls.length > 0 && (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {selectedNews.image_urls.map((url, index) => (
-                  <img key={`${selectedNews.id}-${index}`} src={url} alt={`Foto berita ${index + 1}`} className="h-52 w-full rounded-xl object-cover" />
+                  <img key={`${selectedNews.id}-${index}`} src={url} alt={`Foto berita ${index + 1}`} className="h-52 w-full rounded-xl bg-slate-100 object-contain" />
                 ))}
               </div>
             )}
@@ -521,7 +628,14 @@ export default function PublicDashboardPage() {
       )}
 
       {showStatusGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeStatusGuideModal();
+            }
+          }}
+        >
           <div className="w-full max-w-3xl overflow-hidden rounded-[2rem] bg-white shadow-soft">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <div>
@@ -530,7 +644,7 @@ export default function PublicDashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowStatusGuideModal(false)}
+                onClick={() => closeStatusGuideModal()}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
               >
                 Tutup
