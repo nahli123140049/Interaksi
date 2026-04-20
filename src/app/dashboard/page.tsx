@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
@@ -14,15 +14,6 @@ type PublicReport = {
   evidence_url: string | null;
   status: string;
   additional_data: Record<string, string> | null;
-};
-
-type NewsItem = {
-  id: string;
-  created_at: string;
-  title: string;
-  summary: string | null;
-  content: string;
-  image_urls: string[] | null;
 };
 
 type StatusMeta = {
@@ -76,10 +67,6 @@ function formatDate(value: string) {
   });
 }
 
-function isNewsTableMissingError(message: string) {
-  return /relation .*news_posts.* does not exist|Could not find the table 'public.news_posts' in the schema cache/i.test(message);
-}
-
 function getStatusMeta(status: string): StatusMeta {
   return statusMetaMap[status] ?? statusMetaMap['Menunggu Verifikasi'];
 }
@@ -112,16 +99,13 @@ function getRedaksiNote(data: Record<string, string> | null) {
 
 export default function PublicDashboardPage() {
   const [reports, setReports] = useState<PublicReport[]>([]);
-  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
-  const [newsImageIndexes, setNewsImageIndexes] = useState<Record<string, number>>({});
-  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
   const [showStatusGuide, setShowStatusGuide] = useState(false);
   const [showStatusGuideModal, setShowStatusGuideModal] = useState(false);
   const [error, setError] = useState('');
-  const [newsError, setNewsError] = useState('');
   const [loading, setLoading] = useState(true);
+  const modalDepthRef = useRef(0);
 
   useEffect(() => {
     const loadReports = async () => {
@@ -167,158 +151,83 @@ export default function PublicDashboardPage() {
 
       setReports(normalizedReports as PublicReport[]);
       setError('Ada pembaruan sistem yang belum lengkap. Data tetap bisa dibaca, tetapi beberapa detail pembaruan belum tampil penuh.');
-
       setLoading(false);
     };
 
     loadReports();
   }, []);
 
-  useEffect(() => {
-    const loadNews = async () => {
-      const result = await supabase
-        .from('news_posts')
-        .select('id, created_at, title, summary, content, image_urls')
-        .order('created_at', { ascending: false })
-        .limit(6);
-
-      if (result.error) {
-        if (isNewsTableMissingError(result.error.message)) {
-          setNewsError('Berita terkini belum aktif.');
-          setNewsItems([]);
-          return;
-        }
-
-        setNewsError(result.error.message);
-        setNewsItems([]);
-        return;
-      }
-
-      setNewsError('');
-      setNewsItems((result.data ?? []) as NewsItem[]);
-    };
-
-    loadNews();
-  }, []);
-
   const visibleReports = useMemo(() => {
     return reports.filter((report) => categoryFilter === 'all' || report.category === categoryFilter);
   }, [reports, categoryFilter]);
 
-  const handlePrevNewsImage = (news: NewsItem) => {
-    const total = news.image_urls?.length ?? 0;
-    if (total <= 1) return;
-
-    setNewsImageIndexes((current) => {
-      const active = current[news.id] ?? 0;
-      const next = (active - 1 + total) % total;
-      return { ...current, [news.id]: next };
-    });
-  };
-
-  const handleNextNewsImage = (news: NewsItem) => {
-    const total = news.image_urls?.length ?? 0;
-    if (total <= 1) return;
-
-    setNewsImageIndexes((current) => {
-      const active = current[news.id] ?? 0;
-      const next = (active + 1) % total;
-      return { ...current, [news.id]: next };
-    });
-  };
-
-  const closeSelectedReport = useCallback((syncHistory = true) => {
+  const closeSelectedReport = useCallback(() => {
     setSelectedReport(null);
-
-    if (
-      syncHistory &&
-      typeof window !== 'undefined' &&
-      window.history.state &&
-      window.history.state.__modal === 'dashboard-report-detail'
-    ) {
-      window.history.back();
-    }
   }, []);
 
-  const closeSelectedNews = useCallback((syncHistory = true) => {
-    setSelectedNews(null);
-
-    if (
-      syncHistory &&
-      typeof window !== 'undefined' &&
-      window.history.state &&
-      window.history.state.__modal === 'dashboard-news-detail'
-    ) {
-      window.history.back();
-    }
-  }, []);
-
-  const closeStatusGuideModal = useCallback((syncHistory = true) => {
+  const closeStatusGuideModal = useCallback(() => {
     setShowStatusGuideModal(false);
-
-    if (
-      syncHistory &&
-      typeof window !== 'undefined' &&
-      window.history.state &&
-      window.history.state.__modal === 'dashboard-status-guide'
-    ) {
-      window.history.back();
-    }
   }, []);
+
+  const closeTopModal = useCallback(() => {
+    if (showStatusGuideModal) {
+      closeStatusGuideModal();
+      return;
+    }
+
+    if (selectedReport) {
+      closeSelectedReport();
+    }
+  }, [closeSelectedReport, closeStatusGuideModal, selectedReport, showStatusGuideModal]);
+
+  const requestCloseTopModal = useCallback(() => {
+    if (typeof window !== 'undefined' && modalDepthRef.current > 0) {
+      window.history.back();
+      return;
+    }
+
+    closeTopModal();
+  }, [closeTopModal]);
 
   useEffect(() => {
-    const topModal = showStatusGuideModal
-      ? 'dashboard-status-guide'
-      : selectedNews
-        ? 'dashboard-news-detail'
-        : selectedReport
-          ? 'dashboard-report-detail'
-          : null;
+    if (typeof window === 'undefined') return;
 
-    if (!topModal) return;
+    const modalDepth = Number(Boolean(selectedReport)) + Number(Boolean(showStatusGuideModal));
+    const previousDepth = modalDepthRef.current;
 
-    const closeTopModal = (syncHistory = true) => {
-      if (showStatusGuideModal) {
-        closeStatusGuideModal(syncHistory);
-        return;
+    if (modalDepth > previousDepth) {
+      const pushCount = modalDepth - previousDepth;
+      for (let index = 0; index < pushCount; index += 1) {
+        window.history.pushState({ __modal: 'dashboard-modal' }, '', window.location.href);
       }
+    }
 
-      if (selectedNews) {
-        closeSelectedNews(syncHistory);
-        return;
-      }
+    modalDepthRef.current = modalDepth;
+  }, [selectedReport, showStatusGuideModal]);
 
-      if (selectedReport) {
-        closeSelectedReport(syncHistory);
-      }
-    };
-
+  useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeTopModal();
+      if (event.key === 'Escape' && modalDepthRef.current > 0) {
+        event.preventDefault();
+        requestCloseTopModal();
       }
     };
 
     const handlePopState = () => {
-      closeTopModal(false);
+      if (modalDepthRef.current > 0) {
+        closeTopModal();
+        modalDepthRef.current = Math.max(0, modalDepthRef.current - 1);
+      }
     };
 
-    window.history.pushState({ __modal: topModal }, '', window.location.href);
     window.addEventListener('keydown', handleEscape);
-    window.addEventListener('popstate', handlePopState, { once: true });
+    window.addEventListener('popstate', handlePopState);
 
     return () => {
       window.removeEventListener('keydown', handleEscape);
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [
-    closeSelectedNews,
-    closeSelectedReport,
-    closeStatusGuideModal,
-    selectedNews,
-    selectedReport,
-    showStatusGuideModal
-  ]);
+  }, [closeTopModal, requestCloseTopModal]);
 
   return (
     <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
@@ -350,64 +259,43 @@ export default function PublicDashboardPage() {
           </div>
         </header>
 
-        <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-          <div className="border-b border-slate-200/70 pb-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
-            <h2 className="mt-1 text-2xl font-bold text-navy-950">Perkembangan terbaru dari tim redaksi</h2>
-          </div>
+        <section className="relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-amber-50 p-6 shadow-soft lg:p-8">
+          <div className="pointer-events-none absolute -left-24 -top-24 h-48 w-48 rounded-full bg-cyan-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -right-16 h-52 w-52 rounded-full bg-amber-200/40 blur-3xl" />
 
-          {newsError ? (
-            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{newsError}</div>
-          ) : newsItems.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">Belum ada berita terbaru.</div>
-          ) : (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {newsItems.map((news) => (
-                <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-                  {news.image_urls && news.image_urls.length > 0 && (
-                    <div className="mb-3 overflow-hidden rounded-xl border border-slate-200">
-                      <img
-                        src={news.image_urls[newsImageIndexes[news.id] ?? 0]}
-                        alt={news.title}
-                        className="h-40 w-full bg-slate-100 object-contain"
-                      />
-                      {news.image_urls.length > 1 && (
-                        <div className="flex items-center justify-between bg-white px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => handlePrevNewsImage(news)}
-                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-                          >
-                            Sebelumnya
-                          </button>
-                          <span className="text-xs text-slate-500">
-                            {(newsImageIndexes[news.id] ?? 0) + 1}/{news.image_urls.length}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleNextNewsImage(news)}
-                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-                          >
-                            Berikutnya
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{formatDate(news.created_at)}</p>
-                  <h3 className="mt-2 text-lg font-bold text-navy-950">{news.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">{news.summary || (news.content.length > 180 ? `${news.content.slice(0, 180)}...` : news.content)}</p>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedNews(news)}
-                    className="mt-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-                  >
-                    Baca Berita Lengkap
-                  </button>
-                </article>
-              ))}
+          <div className="relative">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-700">Eksplorasi Publik</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Lihat Data dan Berita di Halaman Khusus</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+              Supaya lebih rapi, Pusat Data Aspirasi dan Berita Terkini sekarang punya halaman sendiri. Klik tombol di bawah untuk masuk.
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <article className="rounded-[1.5rem] border border-cyan-100 bg-white/90 p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">Pusat Data Aspirasi</p>
+                <h3 className="mt-2 text-2xl font-bold text-slate-900">Statistik laporan kampus</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">Lihat total laporan masuk, distribusi kategori, dan insight ringkas transparansi data.</p>
+                <Link
+                  href="/dashboard/pusat-data"
+                  className="mt-4 inline-flex items-center justify-center rounded-full bg-cyan-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-800"
+                >
+                  Buka Pusat Data Aspirasi
+                </Link>
+              </article>
+
+              <article className="rounded-[1.5rem] border border-amber-100 bg-white/90 p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Berita Terkini</p>
+                <h3 className="mt-2 text-2xl font-bold text-slate-900">Rangkuman berita terbit</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">Akses daftar berita yang sudah dipublikasikan oleh redaksi dalam satu halaman khusus.</p>
+                <Link
+                  href="/dashboard/berita"
+                  className="mt-4 inline-flex items-center justify-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"
+                >
+                  Buka Halaman Berita
+                </Link>
+              </article>
             </div>
-          )}
+          </div>
         </section>
 
         <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
@@ -528,7 +416,7 @@ export default function PublicDashboardPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
-              closeSelectedReport();
+              requestCloseTopModal();
             }
           }}
         >
@@ -540,7 +428,7 @@ export default function PublicDashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => closeSelectedReport()}
+                onClick={() => requestCloseTopModal()}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
               >
                 Tutup
@@ -589,50 +477,12 @@ export default function PublicDashboardPage() {
         </div>
       )}
 
-      {selectedNews && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              closeSelectedNews();
-            }
-          }}
-        >
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
-                <h3 className="mt-1 text-2xl font-bold text-navy-950">{selectedNews.title}</h3>
-                <p className="mt-1 text-sm text-slate-500">{formatDate(selectedNews.created_at)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => closeSelectedNews()}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
-              >
-                Tutup
-              </button>
-            </div>
-
-            {selectedNews.image_urls && selectedNews.image_urls.length > 0 && (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {selectedNews.image_urls.map((url, index) => (
-                  <img key={`${selectedNews.id}-${index}`} src={url} alt={`Foto berita ${index + 1}`} className="h-52 w-full rounded-xl bg-slate-100 object-contain" />
-                ))}
-              </div>
-            )}
-
-            <div className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-800">{selectedNews.content}</div>
-          </div>
-        </div>
-      )}
-
       {showStatusGuideModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
-              closeStatusGuideModal();
+              requestCloseTopModal();
             }
           }}
         >
@@ -644,7 +494,7 @@ export default function PublicDashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={() => closeStatusGuideModal()}
+                onClick={() => requestCloseTopModal()}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
               >
                 Tutup

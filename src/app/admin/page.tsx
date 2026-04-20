@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 import {
@@ -178,6 +178,7 @@ export default function AdminPage() {
 
   const [reportFlags, setReportFlags] = useState<Record<string, ModerationFlag[]>>({});
   const [flagsLoading, setFlagsLoading] = useState(false);
+  const modalDepthRef = useRef(0);
 
   const allowedAdminEmails = useMemo(() => {
     const rawEmails = process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '';
@@ -678,6 +679,57 @@ export default function AdminPage() {
     }
   };
 
+  const closeSelectedReport = useCallback(() => {
+    setSelectedReport(null);
+  }, []);
+
+  const requestCloseSelectedReport = useCallback(() => {
+    if (typeof window !== 'undefined' && modalDepthRef.current > 0) {
+      window.history.back();
+      return;
+    }
+
+    closeSelectedReport();
+  }, [closeSelectedReport]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (selectedReport && modalDepthRef.current === 0) {
+      window.history.pushState({ __modal: 'admin-report-detail' }, '', window.location.href);
+      modalDepthRef.current = 1;
+      return;
+    }
+
+    if (!selectedReport && modalDepthRef.current > 0) {
+      modalDepthRef.current = 0;
+    }
+  }, [selectedReport]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && modalDepthRef.current > 0) {
+        event.preventDefault();
+        requestCloseSelectedReport();
+      }
+    };
+
+    const handlePopState = () => {
+      if (modalDepthRef.current > 0) {
+        closeSelectedReport();
+        modalDepthRef.current = 0;
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [closeSelectedReport, requestCloseSelectedReport]);
+
   if (!sessionReady) {
     return (
       <main className="flex min-h-screen items-center justify-center px-6 text-slate-900">
@@ -1064,7 +1116,14 @@ export default function AdminPage() {
       </div>
 
       {selectedReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              requestCloseSelectedReport();
+            }
+          }}
+        >
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
@@ -1073,7 +1132,7 @@ export default function AdminPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedReport(null)}
+                onClick={() => requestCloseSelectedReport()}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
               >
                 Tutup
