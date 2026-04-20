@@ -24,7 +24,7 @@ type FieldMap = {
   kontakSaksi: string;
   waktuKejadian: string;
   detailLokasi: string;
-  buktiFoto: File | null;
+  buktiFoto: File[];
 };
 
 const categoryConfig: Record<string, { title: string; subtitle: string; accent: string }> = {
@@ -68,12 +68,19 @@ const initialFormState: FieldMap = {
   kontakSaksi: '',
   waktuKejadian: '',
   detailLokasi: '',
-  buktiFoto: null
+  buktiFoto: []
 };
 
 function getAdditionalData(category: string, form: FieldMap) {
+  const evidenceUrls = form.buktiFoto.map((file) => file.name).filter(Boolean);
+
   return {
     opini: form.opini.trim(),
+    ...(evidenceUrls.length > 0
+      ? {
+          uploaded_photo_names: evidenceUrls
+        }
+      : {}),
     ...(category === 'fasilitas'
       ? {
           gedung_lokasi: form.gedungLokasi.trim(),
@@ -118,6 +125,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
   };
 
   const validateForm = () => {
+        if (form.buktiFoto.length > 5) {
+          return 'Maksimal upload 5 foto dalam satu laporan.';
+        }
+
     if (!form.programStudiAngkatan.trim() || !form.whatsapp.trim() || !form.deskripsiMasalah.trim()) {
       return 'Lengkapi Program Studi & Angkatan, Nomor WhatsApp, dan Deskripsi Masalah.';
     }
@@ -166,18 +177,23 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
 
     try {
       let evidenceUrl: string | null = null;
+      const evidenceUrls: string[] = [];
 
-      if (form.buktiFoto) {
-        const extension = form.buktiFoto.name.split('.').pop() ?? 'jpg';
-        const fileName = `${category}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-        const { error: uploadError } = await supabase.storage.from('evidence').upload(fileName, form.buktiFoto, { upsert: false });
+      if (form.buktiFoto.length > 0) {
+        for (const photo of form.buktiFoto.slice(0, 5)) {
+          const extension = photo.name.split('.').pop() ?? 'jpg';
+          const fileName = `${category}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+          const { error: uploadError } = await supabase.storage.from('evidence').upload(fileName, photo, { upsert: false });
 
-        if (uploadError) {
-          throw new Error(`Upload bukti gagal: ${uploadError.message}`);
+          if (uploadError) {
+            throw new Error(`Upload bukti gagal: ${uploadError.message}`);
+          }
+
+          const { data } = supabase.storage.from('evidence').getPublicUrl(fileName);
+          evidenceUrls.push(data.publicUrl);
         }
 
-        const { data } = supabase.storage.from('evidence').getPublicUrl(fileName);
-        evidenceUrl = data.publicUrl;
+        evidenceUrl = evidenceUrls[0] ?? null;
       }
 
       const { error: insertError } = await supabase.from('reports').insert({
@@ -188,7 +204,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
         privacy: form.privacy,
         description: form.deskripsiMasalah.trim(),
         evidence_url: evidenceUrl,
-        additional_data: getAdditionalData(category, form)
+        additional_data: {
+          ...getAdditionalData(category, form),
+          ...(evidenceUrls.length > 0 ? { evidence_urls: evidenceUrls } : {})
+        }
       });
 
       if (insertError) {
@@ -360,11 +379,23 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
               <label className="text-sm font-semibold text-slate-700">Upload Bukti Foto</label>
               <input
                 type="file"
+                multiple
                 accept="image/*"
                 title="Upload Bukti Foto"
-                onChange={(event) => updateField('buktiFoto', event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  if (files.length > 5) {
+                    setError('Maksimal upload 5 foto dalam satu laporan.');
+                    updateField('buktiFoto', files.slice(0, 5));
+                    return;
+                  }
+                  updateField('buktiFoto', files);
+                }}
                 className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
               />
+              {form.buktiFoto.length > 0 && (
+                <p className="text-xs text-slate-600">{form.buktiFoto.length} foto dipilih (maksimal 5).</p>
+              )}
               <p className="text-xs leading-5 text-slate-500">INTERAKSI menjamin kerahasiaan identitas informan sesuai dengan UU Pers No. 40 Tahun 1999 dan Kode Etik Jurnalistik.</p>
             </div>
 

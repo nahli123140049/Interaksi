@@ -9,6 +9,7 @@ interface ModerationFlagsPanelProps {
   onAddFlag: (flagType: FlagType, priority: FlagPriority, description: string) => void;
   onResolveFlag: (flagId: string) => void;
   isLoading?: boolean;
+  readOnly?: boolean;
 }
 
 const flagTypeLabels: Record<FlagType, string> = {
@@ -44,7 +45,8 @@ export function ModerationFlagsPanel({
   flags,
   onAddFlag,
   onResolveFlag,
-  isLoading = false
+  isLoading = false,
+  readOnly = false
 }: ModerationFlagsPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedFlagType, setSelectedFlagType] = useState<FlagType>('duplicate');
@@ -57,11 +59,11 @@ export function ModerationFlagsPanel({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFlagType || !description.trim()) return;
+    if (!selectedFlagType) return;
 
     setIsSubmitting(true);
     try {
-      await onAddFlag(selectedFlagType, selectedPriority, description);
+      await onAddFlag(selectedFlagType, selectedPriority, description.trim());
       setDescription('');
       setSelectedFlagType('duplicate');
       setSelectedPriority('medium');
@@ -107,13 +109,16 @@ export function ModerationFlagsPanel({
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => flag.id && onResolveFlag(flag.id)}
-                  disabled={isLoading}
-                  className="text-xs font-medium px-2 py-1 bg-white bg-opacity-50 hover:bg-opacity-100 rounded disabled:opacity-50 transition"
-                >
-                  ✓ Selesai
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => flag.id && onResolveFlag(flag.id)}
+                    disabled={isLoading}
+                    className="text-xs font-medium px-2 py-1 bg-white bg-opacity-50 hover:bg-opacity-100 rounded disabled:opacity-50 transition"
+                  >
+                    ✓ Selesai
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -142,7 +147,11 @@ export function ModerationFlagsPanel({
       )}
 
       {/* Add New Flag Form */}
-      {showAddForm ? (
+      {readOnly ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          Role monitoring hanya dapat melihat daftar moderasi.
+        </div>
+      ) : showAddForm ? (
         <form onSubmit={handleSubmit} className="space-y-3 pt-3 border-t">
           <div>
             <label className="block text-sm font-medium text-slate-900 mb-1">
@@ -151,6 +160,7 @@ export function ModerationFlagsPanel({
             <select
               value={selectedFlagType}
               onChange={(e) => setSelectedFlagType(e.target.value as FlagType)}
+              title="Tipe Flag"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               {(Object.entries(flagTypeLabels) as Array<[FlagType, string]>).map(
@@ -194,7 +204,7 @@ export function ModerationFlagsPanel({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Jelaskan mengapa laporan ini perlu di-flag..."
+              placeholder="Opsional: jelaskan kenapa laporan ini perlu di-flag"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               rows={3}
             />
@@ -203,7 +213,7 @@ export function ModerationFlagsPanel({
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={isSubmitting || !description.trim()}
+              disabled={isSubmitting}
               className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition"
             >
               {isSubmitting ? 'Menyimpan...' : '+ Tambah Flag'}
@@ -218,8 +228,9 @@ export function ModerationFlagsPanel({
           </div>
         </form>
       ) : (
-        <button
-          onClick={() => setShowAddForm(true)}
+          <button
+            type="button"
+            onClick={() => setShowAddForm(true)}
           className="w-full py-2 px-4 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition"
         >
           + Tambah Flag

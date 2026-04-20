@@ -85,7 +85,7 @@ function formatAdditionalDataLines(data: Record<string, string> | null) {
   if (!data) return [] as Array<{ key: string; label: string; value: string }>;
 
   return Object.entries(data)
-    .filter(([, value]) => String(value ?? '').trim().length > 0)
+    .filter(([key, value]) => key !== 'evidence_urls' && key !== 'uploaded_photo_names' && String(value ?? '').trim().length > 0)
     .map(([key, value]) => ({
       key,
       label: additionalDataLabels[key] ?? key.replaceAll('_', ' '),
@@ -253,7 +253,7 @@ export default function PublicDashboardPage() {
                 href="/admin"
                 className="inline-flex items-center justify-center rounded-full bg-navy-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-navy-800"
               >
-                Admin Dashboard
+                Dashboard Admin
               </Link>
             </div>
           </div>
@@ -266,9 +266,7 @@ export default function PublicDashboardPage() {
           <div className="relative">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-700">Eksplorasi Publik</p>
             <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Lihat Data dan Berita di Halaman Khusus</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-              Supaya lebih rapi, Pusat Data Aspirasi dan Berita Terkini sekarang punya halaman sendiri. Klik tombol di bawah untuk masuk.
-            </p>
+            
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <article className="rounded-[1.5rem] border border-cyan-100 bg-white/90 p-5 shadow-sm">

@@ -27,6 +27,7 @@ function isNewsTableMissingError(message: string) {
 export default function DashboardNewsPage() {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const modalDepthRef = useRef(0);
@@ -166,7 +167,10 @@ export default function DashboardNewsPage() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => setSelectedNews(news)}
+                    onClick={() => {
+                      setSelectedNews(news);
+                      setSelectedImageIndex(0);
+                    }}
                     className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-amber-200 hover:text-amber-900"
                   >
                     Baca Berita Lengkap
@@ -204,10 +208,55 @@ export default function DashboardNewsPage() {
             </div>
 
             {selectedNews.image_urls && selectedNews.image_urls.length > 0 && (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {selectedNews.image_urls.map((url, index) => (
-                  <img key={`${selectedNews.id}-${index}`} src={url} alt={`Foto berita ${index + 1}`} className="h-52 w-full rounded-xl bg-slate-100 object-contain" />
-                ))}
+              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="relative">
+                  <img
+                    src={selectedNews.image_urls[selectedImageIndex]}
+                    alt={`Foto berita ${selectedImageIndex + 1}`}
+                    className="h-72 w-full rounded-xl bg-slate-100 object-contain"
+                  />
+
+                  {selectedNews.image_urls.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedImageIndex((current) =>
+                            (current - 1 + selectedNews.image_urls!.length) % selectedNews.image_urls!.length
+                          )
+                        }
+                        className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-white"
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedImageIndex((current) => (current + 1) % selectedNews.image_urls!.length)
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-white"
+                      >
+                        →
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {selectedNews.image_urls.length > 1 && (
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    {selectedNews.image_urls.map((_, index) => (
+                      <button
+                        key={`${selectedNews.id}-dot-${index}`}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(index)}
+                        className={`h-2.5 rounded-full transition ${
+                          selectedImageIndex === index ? 'w-6 bg-amber-600' : 'w-2.5 bg-slate-300 hover:bg-slate-400'
+                        }`}
+                        aria-label={`Foto ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

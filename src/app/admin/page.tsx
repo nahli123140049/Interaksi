@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 import {
+  adminRoleDescriptions,
+  adminRoleLabels,
+  getRolePermissions,
+  isAdminRole,
+  type AdminRole
+} from '@/lib/authRoles';
+import {
   fetchAuditLogs,
   logAuditAction,
   fetchReportAnalytics,
@@ -125,7 +132,7 @@ function formatAdditionalDataLines(data: Record<string, string> | null, excluded
   if (!data) return [] as Array<{ key: string; label: string; value: string }>;
 
   return Object.entries(data)
-    .filter(([key, value]) => !excludedKeys.includes(key) && String(value ?? '').trim().length > 0)
+    .filter(([key, value]) => !excludedKeys.includes(key) && key !== 'evidence_urls' && key !== 'uploaded_photo_names' && String(value ?? '').trim().length > 0)
     .map(([key, value]) => ({
       key,
       label: additionalDataLabels[key] ?? key.replaceAll('_', ' '),
@@ -137,6 +144,7 @@ export default function AdminPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
   const [hasStatusColumn, setHasStatusColumn] = useState(true);
   const [authError, setAuthError] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
@@ -180,34 +188,58 @@ export default function AdminPage() {
   const [flagsLoading, setFlagsLoading] = useState(false);
   const modalDepthRef = useRef(0);
 
-  const allowedAdminEmails = useMemo(() => {
-    const rawEmails = process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '';
-    return rawEmails
-      .split(',')
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean);
-  }, []);
+  const permissions = useMemo(() => getRolePermissions(adminRole), [adminRole]);
+  const roleLabel = adminRole ? adminRoleLabels[adminRole] : 'Belum Ditetapkan';
+  const roleDescription = adminRole ? adminRoleDescriptions[adminRole] : 'Role belum terdeteksi dari profiles.';
+  const availableTabs = useMemo(
+    () => [
+      { id: 'reports' as TabName, label: '📋 Laporan' },
+      { id: 'berita' as TabName, label: '📰 Berita' },
+      { id: 'analytics' as TabName, label: '📊 Analitik' },
+      ...(permissions.canViewAuditLog ? [{ id: 'audit' as TabName, label: '📜 Audit Log' }] : [])
+    ],
+    [permissions.canViewAuditLog]
+  );
 
-  const isEmailAllowed = (email?: string | null) => {
-    if (!allowedAdminEmails.length) {
-      return false;
+  const loadCurrentUserRole = async () => {
+    const { data, error } = await supabase.rpc('current_user_role');
+
+    if (error) {
+      throw new Error('Role akses belum aktif. Jalankan supabase_auth_roles.sql terlebih dahulu.');
     }
 
-    return Boolean(email && allowedAdminEmails.includes(email.trim().toLowerCase()));
+    return isAdminRole(data) ? data : null;
   };
 
-  const handleUnauthorizedSession = async () => {
+  const loadAdminData = async () => {
+    const results = await Promise.allSettled([
+      fetchReports(),
+      fetchNews(),
+      loadAnalytics(),
+      loadAuditLogs()
+    ]);
+
+    const firstFailure = results.find((result) => result.status === 'rejected');
+    if (firstFailure && firstFailure.status === 'rejected') {
+      console.error('Gagal memuat sebagian data admin:', firstFailure.reason);
+    }
+  };
+
+  const handleUnauthorizedSession = async (message?: string) => {
     setIsAuthorized(false);
     setIsLoggedIn(false);
+    setAdminRole(null);
     setReports([]);
     setAdminEmail('');
-    if (!allowedAdminEmails.length) {
-      setAuthError('Daftar email admin belum dikonfigurasi. Isi NEXT_PUBLIC_ADMIN_EMAILS terlebih dahulu.');
-    } else {
-      setAuthError('Akun ini tidak diizinkan mengakses dashboard admin.');
-    }
+    setAuthError(message || 'Akun ini tidak memiliki akses ke dashboard admin.');
     await supabase.auth.signOut();
   };
+
+  useEffect(() => {
+    if (!permissions.canViewAuditLog && currentTab === 'audit') {
+      setCurrentTab('reports');
+    }
+  }, [currentTab, permissions.canViewAuditLog]);
 
   const fetchReports = async () => {
     const withStatusResult = await supabase
@@ -324,26 +356,30 @@ export default function AdminPage() {
 
         const hasSession = Boolean(data.session);
         const email = data.session?.user.email;
-        const authorized = hasSession && isEmailAllowed(email);
+        const role = hasSession ? await loadCurrentUserRole() : null;
+        const authorized = Boolean(role);
 
         setIsLoggedIn(hasSession);
         setIsAuthorized(authorized);
+        setAdminRole(role);
         setAdminEmail(email || '');
 
-        if (hasSession && authorized) {
-          await fetchReports();
-          await fetchNews();
-          await loadAnalytics();
-          await loadAuditLogs();
-        } else if (hasSession && !authorized) {
-          await handleUnauthorizedSession();
-        }
-      } catch (error) {
-        setAuthError(error instanceof Error ? error.message : 'Gagal memeriksa sesi admin.');
-      } finally {
         if (mounted) {
           setSessionReady(true);
         }
+
+        if (hasSession && authorized) {
+          void loadAdminData();
+        } else if (hasSession && !authorized) {
+          await handleUnauthorizedSession('Role profile belum tersedia atau tidak valid. Jalankan migration auth roles dan pastikan user sudah punya profil.');
+        }
+      } catch (error) {
+        setAuthError(error instanceof Error ? error.message : 'Gagal memeriksa sesi admin.');
+        if (mounted) {
+          setSessionReady(true);
+        }
+      } finally {
+        // sessionReady sudah diset lebih awal agar UI tidak stuck pada loading.
       }
     };
 
@@ -353,21 +389,21 @@ export default function AdminPage() {
       data: { subscription }
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       try {
-        const authorized = Boolean(session) && isEmailAllowed(session?.user.email);
+        const role = session ? await loadCurrentUserRole() : null;
+        const authorized = Boolean(role);
         setIsLoggedIn(Boolean(session));
         setIsAuthorized(authorized);
+        setAdminRole(role);
         setAdminEmail(session?.user.email || '');
 
         if (session && authorized) {
-          await fetchReports();
-          await fetchNews();
-          await loadAnalytics();
-          await loadAuditLogs();
+          void loadAdminData();
         } else if (session && !authorized) {
-          await handleUnauthorizedSession();
+          await handleUnauthorizedSession('Role profile belum tersedia atau tidak valid.');
         } else {
           setReports([]);
           setNewsItems([]);
+          setAdminRole(null);
         }
       } catch (error) {
         setAuthError(error instanceof Error ? error.message : 'Terjadi kesalahan saat sinkronisasi sesi.');
@@ -408,8 +444,6 @@ export default function AdminPage() {
 
       if (error) {
         setAuthError(error.message);
-      } else if (!isEmailAllowed(loginEmail)) {
-        await handleUnauthorizedSession();
       }
     } finally {
       setLoading(false);
@@ -417,7 +451,28 @@ export default function AdminPage() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    setAuthError('');
+
+    const globalLogout = await supabase.auth.signOut({ scope: 'global' });
+
+    if (globalLogout.error) {
+      const localLogout = await supabase.auth.signOut({ scope: 'local' });
+      if (localLogout.error) {
+        setAuthError(`Gagal logout: ${localLogout.error.message}`);
+      }
+    }
+
+    setIsLoggedIn(false);
+    setIsAuthorized(false);
+    setAdminRole(null);
+    setAdminEmail('');
+    setReports([]);
+    setNewsItems([]);
+    setSelectedReport(null);
+
+    if (typeof window !== 'undefined') {
+      window.location.replace('/admin');
+    }
   };
 
   const openDetail = useCallback(async (report: ReportItem) => {
@@ -440,6 +495,10 @@ export default function AdminPage() {
 
   const saveStatus = async () => {
     if (!selectedReport) return;
+    if (!permissions.canEditReports) {
+      setAuthError('Role monitoring hanya bisa melihat data tanpa mengubah status.');
+      return;
+    }
 
     setSavingStatus(true);
     setAuthError('');
@@ -494,6 +553,11 @@ export default function AdminPage() {
 
   const handleCreateNews = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!permissions.canPublishContent) {
+      setNewsError('Role monitoring tidak dapat membuat atau mempublikasikan berita.');
+      return;
+    }
+
     setNewsError('');
     setNewsMessage('');
 
@@ -581,6 +645,11 @@ export default function AdminPage() {
   };
 
   const handleEditNews = (news: NewsItem) => {
+    if (!permissions.canEditNews) {
+      setNewsError('Role monitoring tidak dapat mengedit berita.');
+      return;
+    }
+
     setEditingNewsId(news.id);
     setNewsTitle(news.title);
     setNewsSummary(news.summary ?? '');
@@ -603,6 +672,11 @@ export default function AdminPage() {
   };
 
   const handleDeleteNews = async (newsId: string) => {
+    if (!permissions.canDeleteNews) {
+      setNewsError('Role ini tidak memiliki izin untuk menghapus berita.');
+      return;
+    }
+
     setDeletingNewsId(newsId);
     setNewsError('');
     setNewsMessage('');
@@ -637,6 +711,10 @@ export default function AdminPage() {
 
   const handleAddFlag = async (flagType: FlagType, priority: FlagPriority, description: string) => {
     if (!selectedReport || !adminEmail) return;
+    if (!permissions.canModerateContent) {
+      setAuthError('Role monitoring hanya bisa membaca data moderasi.');
+      return;
+    }
 
     try {
       await createModerationFlag(
@@ -663,6 +741,10 @@ export default function AdminPage() {
 
   const handleResolveFlag = async (flagId: string) => {
     if (!selectedReport || !adminEmail) return;
+    if (!permissions.canModerateContent) {
+      setAuthError('Role monitoring hanya bisa membaca data moderasi.');
+      return;
+    }
 
     try {
       await resolveModerationFlag(flagId, adminEmail);
@@ -800,6 +882,11 @@ export default function AdminPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">INTERAKSI Admin</p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Dashboard Laporan Mahasiswa</h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantau laporan, atur status redaksi, kelola moderasi konten, dan analitik mendalam.</p>
+              <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full border border-cyan-100 bg-cyan-50 px-4 py-2 text-sm text-cyan-900">
+                <span className="font-semibold">Hak Akses:</span>
+                <span className="font-bold">{roleLabel}</span>
+                <span className="text-cyan-700/80">{roleDescription}</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -822,16 +909,11 @@ export default function AdminPage() {
 
         <div className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex gap-2 border-b border-slate-200 pb-4 overflow-x-auto">
-            {[
-              { id: 'reports', label: '📋 Laporan' },
-              { id: 'berita', label: '📰 Berita' },
-              { id: 'analytics', label: '📊 Analitik' },
-              { id: 'audit', label: '📜 Audit Log' }
-            ].map((tab) => (
+            {availableTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setCurrentTab(tab.id as TabName)}
+                onClick={() => setCurrentTab(tab.id)}
                 className={`px-4 py-2 text-sm font-semibold whitespace-nowrap transition ${
                   currentTab === tab.id
                     ? 'text-navy-950 border-b-2 border-navy-950'
@@ -971,12 +1053,19 @@ export default function AdminPage() {
               )}
             </div>
 
+            {!permissions.canPublishContent && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Role monitoring hanya dapat membaca berita yang sudah terbit.
+              </div>
+            )}
+
             <form className="mt-6 space-y-4" onSubmit={handleCreateNews}>
               <div className="grid gap-4 md:grid-cols-2">
                 <input
                   type="text"
                   value={newsTitle}
                   onChange={(event) => setNewsTitle(event.target.value)}
+                  disabled={!permissions.canPublishContent}
                   placeholder="Judul berita"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
                 />
@@ -984,6 +1073,7 @@ export default function AdminPage() {
                   type="text"
                   value={newsSummary}
                   onChange={(event) => setNewsSummary(event.target.value)}
+                  disabled={!permissions.canPublishContent}
                   placeholder="Ringkasan berita (opsional)"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
                 />
@@ -992,6 +1082,7 @@ export default function AdminPage() {
               <textarea
                 value={newsContent}
                 onChange={(event) => setNewsContent(event.target.value)}
+                disabled={!permissions.canPublishContent}
                 rows={6}
                 placeholder="Isi berita lengkap"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
@@ -1005,6 +1096,7 @@ export default function AdminPage() {
                   accept="image/*"
                   title="Upload Foto Berita"
                   onChange={(event) => setNewsPhotos(Array.from(event.target.files ?? []))}
+                  disabled={!permissions.canPublishContent}
                   className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
                 />
                 {existingImageUrls.length > 0 && (
@@ -1015,24 +1107,26 @@ export default function AdminPage() {
               {newsError && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{newsError}</div>}
               {newsMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{newsMessage}</div>}
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={savingNews}
-                  className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {savingNews ? 'Menyimpan berita...' : editingNewsId ? 'Simpan Perubahan Berita' : 'Publikasikan Berita'}
-                </button>
-                {editingNewsId && (
+              {permissions.canPublishContent ? (
+                <div className="flex flex-wrap items-center gap-3">
                   <button
-                    type="button"
-                    onClick={handleCancelEditNews}
-                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                    type="submit"
+                    disabled={savingNews}
+                    className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Batal Edit
+                    {savingNews ? 'Menyimpan berita...' : editingNewsId ? 'Simpan Perubahan Berita' : 'Publikasikan Berita'}
                   </button>
-                )}
-              </div>
+                  {editingNewsId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditNews}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                    >
+                      Batal Edit
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </form>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1056,23 +1150,29 @@ export default function AdminPage() {
                     {news.image_urls && news.image_urls.length > 1 && (
                       <p className="mt-2 text-xs text-slate-500">+{news.image_urls.length - 1} foto tambahan</p>
                     )}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditNews(news)}
-                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteNews(news.id)}
-                        disabled={deletingNewsId === news.id}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {deletingNewsId === news.id ? 'Menghapus...' : 'Hapus'}
-                      </button>
-                    </div>
+                    {(permissions.canEditNews || permissions.canDeleteNews) && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {permissions.canEditNews && (
+                          <button
+                            type="button"
+                            onClick={() => handleEditNews(news)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {permissions.canDeleteNews && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNews(news.id)}
+                            disabled={deletingNewsId === news.id}
+                            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {deletingNewsId === news.id ? 'Menghapus...' : 'Hapus'}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </article>
                 ))
               )}
@@ -1097,7 +1197,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {currentTab === 'audit' && (
+        {currentTab === 'audit' && permissions.canViewAuditLog && (
           <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
             <div className="border-b border-slate-200/70 pb-5 mb-6">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Audit Logs</p>
@@ -1152,6 +1252,7 @@ export default function AdminPage() {
                     value={statusDraft}
                     title="Status Laporan"
                     onChange={(event) => setStatusDraft(event.target.value)}
+                    disabled={!permissions.canEditReports}
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
                   >
                     {statusOptions.map((status) => (
@@ -1167,18 +1268,23 @@ export default function AdminPage() {
                     value={redaksiNoteDraft}
                     onChange={(event) => setRedaksiNoteDraft(event.target.value)}
                     rows={4}
+                    disabled={!permissions.canEditReports}
                     placeholder="Isi hasil verifikasi, temuan lapangan, atau catatan redaksi yang bisa dilihat user."
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
                   />
 
-                  <button
-                    type="button"
-                    onClick={saveStatus}
-                    disabled={savingStatus || !hasStatusColumn}
-                    className="mt-3 inline-flex rounded-full bg-navy-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {!hasStatusColumn ? 'Status Belum Aktif' : savingStatus ? 'Menyimpan...' : 'Simpan Status'}
-                  </button>
+                  {permissions.canEditReports ? (
+                    <button
+                      type="button"
+                      onClick={saveStatus}
+                      disabled={savingStatus || !hasStatusColumn}
+                      className="mt-3 inline-flex rounded-full bg-navy-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {!hasStatusColumn ? 'Status Belum Aktif' : savingStatus ? 'Menyimpan...' : 'Simpan Status'}
+                    </button>
+                  ) : (
+                    <p className="mt-3 text-xs font-semibold text-slate-500">Mode monitoring: status laporan hanya bisa dilihat.</p>
+                  )}
                 </div>
                 <InfoRow label="Deskripsi" value={selectedReport.description} />
                 {String(selectedReport.additional_data?.opini ?? '').trim().length > 0 && (
@@ -1193,6 +1299,7 @@ export default function AdminPage() {
                     onAddFlag={handleAddFlag}
                     onResolveFlag={handleResolveFlag}
                     isLoading={flagsLoading}
+                    readOnly={!permissions.canModerateContent}
                   />
                 )}
               </div>

@@ -100,14 +100,16 @@ export async function fetchModerationFlags(reportId?: string) {
   try {
     let query = supabase
       .from('moderation_flags')
-      .select('*')
-      .is('resolved_at', true);
+      .select('*');
 
     if (reportId) {
       query = query.eq('report_id', reportId);
     }
 
-    const { data, error } = await query.order('priority', { ascending: false });
+    const { data, error } = await query
+      .order('resolved_at', { ascending: true, nullsFirst: true })
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];
