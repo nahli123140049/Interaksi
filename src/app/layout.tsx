@@ -14,7 +14,10 @@ const bodyFont = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: 'INTERAKSI - Suara Mahasiswa',
-  description: 'Sistem pelaporan isu kampus untuk mahasiswa dan admin pers.'
+  description: 'Sistem pelaporan isu kampus untuk mahasiswa dan admin pers.',
+  icons: {
+    icon: '/icon.png'
+  }
 };
 
 export default function RootLayout({

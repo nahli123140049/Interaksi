@@ -431,6 +431,17 @@ export default function AdminPage() {
     return visibleReports.slice(startIndex, endIndex);
   }, [visibleReports, currentPage, reportsPerPage]);
 
+  const totalReportsCount = useMemo(() => reports.length, [reports]);
+  const backlogCount = useMemo(
+    () => reports.filter((report) => report.status === 'Menunggu Verifikasi' || report.status === 'Proses Investigasi').length,
+    [reports]
+  );
+  const publishedCount = useMemo(() => reports.filter((report) => report.status === 'Telah Terbit').length, [reports]);
+  const flaggedReportsCount = useMemo(
+    () => Object.values(reportFlags).filter((flags) => flags.some((flag) => !flag.resolved_at)).length,
+    [reportFlags]
+  );
+
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthError('');
@@ -874,7 +885,7 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
+    <main className="editorial-shell min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -905,19 +916,26 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <AdminMetricCard label="Laporan Masuk" value={totalReportsCount} tone="navy" />
+            <AdminMetricCard label="Backlog Verifikasi" value={backlogCount} tone="amber" />
+            <AdminMetricCard label="Sudah Terbit" value={publishedCount} tone="emerald" />
+            <AdminMetricCard label="Flag Aktif" value={flaggedReportsCount} tone="rose" />
+          </div>
         </header>
 
         <div className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-          <div className="flex gap-2 border-b border-slate-200 pb-4 overflow-x-auto">
+          <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-4">
             {availableTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setCurrentTab(tab.id)}
-                className={`px-4 py-2 text-sm font-semibold whitespace-nowrap transition ${
+                className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition ${
                   currentTab === tab.id
-                    ? 'text-navy-950 border-b-2 border-navy-950'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-navy-950 text-white'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:border-navy-200 hover:text-slate-900'
                 }`}
               >
                 {tab.label}
@@ -1358,6 +1376,22 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
       <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+function AdminMetricCard({ label, value, tone }: { label: string; value: number; tone: 'navy' | 'amber' | 'emerald' | 'rose' }) {
+  const toneClass: Record<'navy' | 'amber' | 'emerald' | 'rose', string> = {
+    navy: 'border-navy-100 bg-navy-50 text-navy-900',
+    amber: 'border-amber-100 bg-amber-50 text-amber-900',
+    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-900',
+    rose: 'border-rose-100 bg-rose-50 text-rose-900'
+  };
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass[tone]}`}>
+      <p className="text-xs uppercase tracking-[0.16em]">{label}</p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
     </div>
   );
 }

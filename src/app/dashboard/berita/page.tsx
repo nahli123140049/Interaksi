@@ -112,13 +112,16 @@ export default function DashboardNewsPage() {
     };
   }, [closeNewsModal, requestCloseNewsModal]);
 
+  const featuredNews = newsItems[0] ?? null;
+  const headlineNews = newsItems.slice(1);
+
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
+    <main className="editorial-shell min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+        <header className="glass-panel reveal-fade rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.34em] text-amber-700">Berita Terkini</p>
+              <p className="section-title text-amber-700">Berita Terkini</p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Rilis dan Publikasi Redaksi</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
                 Kumpulan berita yang sudah dipublikasikan dari hasil laporan dan investigasi tim redaksi.
@@ -150,33 +153,67 @@ export default function DashboardNewsPage() {
           ) : newsItems.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">Belum ada berita yang dipublikasikan.</div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {newsItems.map((news) => (
-                <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-                  {news.image_urls?.[0] && (
-                    <img
-                      src={news.image_urls[0]}
-                      alt={news.title}
-                      className="mb-3 h-44 w-full rounded-xl bg-slate-100 object-cover"
-                    />
-                  )}
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{formatDate(news.created_at)}</p>
-                  <h2 className="mt-2 text-lg font-bold text-slate-900">{news.title}</h2>
-                  <p className="mt-2 text-sm leading-7 text-slate-700">
-                    {news.summary || (news.content.length > 180 ? `${news.content.slice(0, 180)}...` : news.content)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedNews(news);
-                      setSelectedImageIndex(0);
-                    }}
-                    className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-amber-200 hover:text-amber-900"
-                  >
-                    Baca Berita Lengkap
-                  </button>
+            <div className="space-y-5">
+              {featuredNews && (
+                <article className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-card">
+                  <div className="grid lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="min-h-[260px] bg-slate-100">
+                      {featuredNews.image_urls?.[0] ? (
+                        <img src={featuredNews.image_urls[0]} alt={featuredNews.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-slate-500">Belum ada foto unggulan</div>
+                      )}
+                    </div>
+                    <div className="p-6">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Headline Redaksi</p>
+                      <h2 className="mt-2 text-2xl font-bold text-slate-900">{featuredNews.title}</h2>
+                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">{formatDate(featuredNews.created_at)}</p>
+                      <p className="mt-3 text-sm leading-7 text-slate-700">
+                        {featuredNews.summary || (featuredNews.content.length > 260 ? `${featuredNews.content.slice(0, 260)}...` : featuredNews.content)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedNews(featuredNews);
+                          setSelectedImageIndex(0);
+                        }}
+                        className="mt-5 inline-flex items-center justify-center rounded-full bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"
+                      >
+                        Baca Berita Lengkap
+                      </button>
+                    </div>
+                  </div>
                 </article>
-              ))}
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {headlineNews.map((news) => (
+                  <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    {news.image_urls?.[0] && (
+                      <img
+                        src={news.image_urls[0]}
+                        alt={news.title}
+                        className="mb-3 h-44 w-full rounded-xl bg-slate-100 object-cover"
+                      />
+                    )}
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{formatDate(news.created_at)}</p>
+                    <h2 className="mt-2 text-lg font-bold text-slate-900">{news.title}</h2>
+                    <p className="mt-2 text-sm leading-7 text-slate-700">
+                      {news.summary || (news.content.length > 180 ? `${news.content.slice(0, 180)}...` : news.content)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedNews(news);
+                        setSelectedImageIndex(0);
+                      }}
+                      className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-amber-200 hover:text-amber-900"
+                    >
+                      Baca Berita Lengkap
+                    </button>
+                  </article>
+                ))}
+              </div>
             </div>
           )}
         </section>

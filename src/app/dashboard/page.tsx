@@ -13,7 +13,7 @@ type PublicReport = {
   description: string;
   evidence_url: string | null;
   status: string;
-  additional_data: Record<string, string> | null;
+  additional_data: Record<string, unknown> | null;
 };
 
 type StatusMeta = {
@@ -60,6 +60,8 @@ const categoryLabels: Record<string, string> = {
   lainnya: 'Pelaporan Lainnya'
 };
 
+const statusJourney = ['Menunggu Verifikasi', 'Proses Investigasi', 'Arsip Internal', 'Telah Terbit'];
+
 function formatDate(value: string) {
   return new Date(value).toLocaleString('id-ID', {
     dateStyle: 'medium',
@@ -81,7 +83,7 @@ const additionalDataLabels: Record<string, string> = {
   detail_lokasi: 'Detail Lokasi'
 };
 
-function formatAdditionalDataLines(data: Record<string, string> | null) {
+function formatAdditionalDataLines(data: Record<string, unknown> | null) {
   if (!data) return [] as Array<{ key: string; label: string; value: string }>;
 
   return Object.entries(data)
@@ -93,8 +95,32 @@ function formatAdditionalDataLines(data: Record<string, string> | null) {
     }));
 }
 
-function getRedaksiNote(data: Record<string, string> | null) {
+function getRedaksiNote(data: Record<string, unknown> | null) {
   return String(data?.redaksi_note ?? '').trim();
+}
+
+function getReportGallery(report: PublicReport) {
+  const primary = report.evidence_url ? [report.evidence_url] : [];
+  const rawExtra = report.additional_data?.evidence_urls;
+
+  let extra: string[] = [];
+  if (Array.isArray(rawExtra)) {
+    extra = rawExtra.map((value) => String(value)).filter(Boolean);
+  } else if (typeof rawExtra === 'string') {
+    try {
+      const parsed = JSON.parse(rawExtra);
+      if (Array.isArray(parsed)) {
+        extra = parsed.map((value) => String(value)).filter(Boolean);
+      }
+    } catch {
+      extra = rawExtra
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return Array.from(new Set([...primary, ...extra]));
 }
 
 export default function PublicDashboardPage() {
@@ -103,6 +129,7 @@ export default function PublicDashboardPage() {
   const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
   const [showStatusGuide, setShowStatusGuide] = useState(false);
   const [showStatusGuideModal, setShowStatusGuideModal] = useState(false);
+  const [selectedEvidenceIndex, setSelectedEvidenceIndex] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const modalDepthRef = useRef(0);
@@ -160,6 +187,14 @@ export default function PublicDashboardPage() {
   const visibleReports = useMemo(() => {
     return reports.filter((report) => categoryFilter === 'all' || report.category === categoryFilter);
   }, [reports, categoryFilter]);
+
+  const totalReports = useMemo(() => reports.length, [reports]);
+  const publishedReports = useMemo(() => reports.filter((report) => report.status === 'Telah Terbit').length, [reports]);
+  const verificationQueue = useMemo(
+    () => reports.filter((report) => report.status === 'Menunggu Verifikasi' || report.status === 'Proses Investigasi').length,
+    [reports]
+  );
+  const withEvidenceCount = useMemo(() => reports.filter((report) => Boolean(report.evidence_url)).length, [reports]);
 
   const closeSelectedReport = useCallback(() => {
     setSelectedReport(null);
@@ -230,13 +265,13 @@ export default function PublicDashboardPage() {
   }, [closeTopModal, requestCloseTopModal]);
 
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
+    <main className="editorial-shell min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+        <header className="glass-panel reveal-fade rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">INTERAKSI</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Ruang Aspirasi Publik</h1>
+              <p className="section-title">INTERAKSI</p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Command Center Aspirasi Publik</h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
                 Jelajahi aspirasi yang masuk, baca isi laporan, dan lihat opini yang ingin dibagikan redaksi tanpa menampilkan identitas pengirim.
               </p>
@@ -257,6 +292,13 @@ export default function PublicDashboardPage() {
               </Link>
             </div>
           </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Total Laporan" value={totalReports} tone="navy" />
+            <MetricCard label="Sedang Diproses" value={verificationQueue} tone="amber" />
+            <MetricCard label="Sudah Terbit" value={publishedReports} tone="emerald" />
+            <MetricCard label="Ada Bukti Foto" value={withEvidenceCount} tone="cyan" />
+          </div>
         </header>
 
         <section className="relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-amber-50 p-6 shadow-soft lg:p-8">
@@ -266,7 +308,14 @@ export default function PublicDashboardPage() {
           <div className="relative">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-700">Eksplorasi Publik</p>
             <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Lihat Data dan Berita di Halaman Khusus</h2>
-            
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {statusJourney.map((status) => (
+                <span key={status} className="rounded-full border border-white/60 bg-white/75 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {status}
+                </span>
+              ))}
+            </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <article className="rounded-[1.5rem] border border-cyan-100 bg-white/90 p-5 shadow-sm">
@@ -316,14 +365,7 @@ export default function PublicDashboardPage() {
                     {value}
                   </option>
                 ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setShowStatusGuide((prev) => !prev)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-              >
-                {showStatusGuide ? 'Tutup Arti Status' : 'Lihat Arti Status'}
-              </button>
+              </select>              
               <button
                 type="button"
                 onClick={() => setShowStatusGuideModal(true)}
@@ -375,7 +417,10 @@ export default function PublicDashboardPage() {
                   <button
                     key={report.id}
                     type="button"
-                    onClick={() => setSelectedReport(report)}
+                    onClick={() => {
+                      setSelectedReport(report);
+                      setSelectedEvidenceIndex(0);
+                    }}
                     className="text-left rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                   >
                     <div className="space-y-3 text-sm text-slate-700">
@@ -457,15 +502,11 @@ export default function PublicDashboardPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50">
-                  {selectedReport.evidence_url ? (
-                    <img src={selectedReport.evidence_url} alt="Bukti laporan" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-slate-500">
-                      Tidak ada bukti foto yang diunggah.
-                    </div>
-                  )}
-                </div>
+                <ReportEvidenceCarousel
+                  images={getReportGallery(selectedReport)}
+                  activeIndex={selectedEvidenceIndex}
+                  onChangeIndex={setSelectedEvidenceIndex}
+                />
                 <div className="rounded-[1.5rem] border border-navy-100 bg-navy-50 p-4 text-sm text-navy-950">
                   Nama pengirim tidak ditampilkan untuk menjaga kerahasiaan.
                 </div>
@@ -529,7 +570,7 @@ export default function PublicDashboardPage() {
   );
 }
 
-function AdditionalDataCard({ data }: { data: Record<string, string> | null }) {
+function AdditionalDataCard({ data }: { data: Record<string, unknown> | null }) {
   const lines = formatAdditionalDataLines(data).filter((item) => item.key !== 'redaksi_note');
 
   return (
@@ -560,6 +601,82 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
       <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, tone }: { label: string; value: number; tone: 'navy' | 'amber' | 'emerald' | 'cyan' }) {
+  const toneClass: Record<'navy' | 'amber' | 'emerald' | 'cyan', string> = {
+    navy: 'border-navy-100 bg-navy-50 text-navy-900',
+    amber: 'border-amber-100 bg-amber-50 text-amber-900',
+    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-900',
+    cyan: 'border-cyan-100 bg-cyan-50 text-cyan-900'
+  };
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass[tone]}`}>
+      <p className="text-xs uppercase tracking-[0.16em]">{label}</p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function ReportEvidenceCarousel({
+  images,
+  activeIndex,
+  onChangeIndex
+}: {
+  images: string[];
+  activeIndex: number;
+  onChangeIndex: (value: number | ((previous: number) => number)) => void;
+}) {
+  if (images.length === 0) {
+    return (
+      <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50">
+        <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-slate-500">Tidak ada bukti foto yang diunggah.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3">
+      <div className="relative">
+        <img src={images[activeIndex]} alt={`Bukti laporan ${activeIndex + 1}`} className="h-[320px] w-full rounded-xl bg-slate-100 object-contain" />
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => onChangeIndex((current) => (current - 1 + images.length) % images.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangeIndex((current) => (current + 1) % images.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700"
+            >
+              →
+            </button>
+          </>
+        )}
+      </div>
+
+      {images.length > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-2">
+          {images.map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              onClick={() => onChangeIndex(index)}
+              aria-label={`Foto ${index + 1}`}
+              className={`h-2.5 rounded-full transition ${
+                activeIndex === index ? 'w-6 bg-navy-700' : 'w-2.5 bg-slate-300 hover:bg-slate-400'
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -58,16 +58,23 @@ export default function PublicAnalyticsPage() {
   }, [weeklyStats]);
 
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
+    <main className="editorial-shell min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
+        <header className="glass-panel reveal-fade rounded-[2rem] p-6 shadow-soft lg:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.34em] text-cyan-700">Pusat Data Aspirasi</p>
+              <p className="section-title text-cyan-700">Pusat Data Aspirasi</p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Transparansi Data Laporan Kampus</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
                 Halaman ini menampilkan statistik laporan yang masuk ke redaksi. Tujuannya agar publik bisa memantau perkembangan data secara terbuka.
               </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['Ringkas', 'Transparan', 'Terbuka'].map((tag) => (
+                  <span key={tag} className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -102,7 +109,7 @@ export default function PublicAnalyticsPage() {
               Belum ada data tren mingguan.
             </div>
           ) : (
-            <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
+            <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-card">
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">

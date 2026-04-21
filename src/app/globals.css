@@ -3,10 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --background: #f3f7fd;
-  --foreground: #0f172a;
-  --card: rgba(255, 255, 255, 0.86);
-  --border: rgba(15, 23, 42, 0.08);
+  --background: #f2f4f8;
+  --foreground: #111827;
+  --card: rgba(255, 255, 255, 0.9);
+  --border: rgba(17, 24, 39, 0.1);
+  --ink: #0f172a;
+  --signal: #d97706;
+  --signal-soft: #fef3c7;
 }
 
 html {
@@ -17,10 +20,11 @@ body {
   margin: 0;
   color: var(--foreground);
   background:
-    radial-gradient(circle at top left, rgba(29, 78, 216, 0.12), transparent 30%),
-    radial-gradient(circle at top right, rgba(15, 23, 42, 0.08), transparent 24%),
-    linear-gradient(180deg, #fbfdff 0%, #edf4fb 100%);
+    radial-gradient(circle at top left, rgba(30, 64, 175, 0.14), transparent 34%),
+    radial-gradient(circle at 95% 10%, rgba(217, 119, 6, 0.16), transparent 30%),
+    linear-gradient(180deg, #fbfdff 0%, #eef2f7 100%);
   font-family: var(--font-body), sans-serif;
+  min-height: 100vh;
 }
 
 h1,
@@ -39,5 +43,87 @@ h4,
   background: var(--card);
   border: 1px solid var(--border);
   box-shadow: 0 20px 60px -30px rgba(15, 23, 42, 0.32);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
+}
+
+.editorial-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.editorial-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.05) 0.5px, transparent 0.5px);
+  background-size: 3px 3px;
+  opacity: 0.25;
+  z-index: -1;
+}
+
+.section-title {
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.headline-ticker {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.headline-track {
+  display: inline-flex;
+  gap: 2rem;
+  padding-left: 100%;
+  animation: ticker-scroll 28s linear infinite;
+}
+
+.headline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.headline-dot {
+  height: 0.4rem;
+  width: 0.4rem;
+  border-radius: 9999px;
+  background: #d97706;
+}
+
+.reveal-fade {
+  animation: reveal-fade 0.55s ease-out both;
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+@keyframes reveal-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
