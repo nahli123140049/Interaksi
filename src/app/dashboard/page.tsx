@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import {
+  getReportCategoryTitle,
+  getReportSearchText,
+  getSlaMeta,
+  parseReportAttachments,
+  parseReportCode
+} from '@/lib/reportUtils';
 
 type PublicReport = {
   id: string;
@@ -87,7 +94,14 @@ function formatAdditionalDataLines(data: Record<string, unknown> | null) {
   if (!data) return [] as Array<{ key: string; label: string; value: string }>;
 
   return Object.entries(data)
-    .filter(([key, value]) => key !== 'evidence_urls' && key !== 'uploaded_photo_names' && String(value ?? '').trim().length > 0)
+    .filter(
+      ([key, value]) =>
+        key !== 'evidence_urls' &&
+        key !== 'uploaded_photo_names' &&
+        key !== 'report_code' &&
+        key !== 'attachments' &&
+        String(value ?? '').trim().length > 0
+    )
     .map(([key, value]) => ({
       key,
       label: additionalDataLabels[key] ?? key.replaceAll('_', ' '),
@@ -126,6 +140,7 @@ function getReportGallery(report: PublicReport) {
 export default function PublicDashboardPage() {
   const [reports, setReports] = useState<PublicReport[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [reportSearch, setReportSearch] = useState('');
   const [selectedReport, setSelectedReport] = useState<PublicReport | null>(null);
   const [showStatusGuide, setShowStatusGuide] = useState(false);
   const [showStatusGuideModal, setShowStatusGuideModal] = useState(false);
@@ -185,8 +200,20 @@ export default function PublicDashboardPage() {
   }, []);
 
   const visibleReports = useMemo(() => {
-    return reports.filter((report) => categoryFilter === 'all' || report.category === categoryFilter);
-  }, [reports, categoryFilter]);
+    return reports.filter((report) => {
+      const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
+      const searchText = getReportSearchText([
+        parseReportCode(report.additional_data),
+        getReportCategoryTitle(report.category),
+        report.prodi,
+        report.description,
+        report.status,
+        report.privacy
+      ]);
+      const matchesSearch = reportSearch.trim().length === 0 || searchText.includes(reportSearch.trim().toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [reports, categoryFilter, reportSearch]);
 
   const totalReports = useMemo(() => reports.length, [reports]);
   const publishedReports = useMemo(() => reports.filter((report) => report.status === 'Telah Terbit').length, [reports]);
@@ -194,7 +221,7 @@ export default function PublicDashboardPage() {
     () => reports.filter((report) => report.status === 'Menunggu Verifikasi' || report.status === 'Proses Investigasi').length,
     [reports]
   );
-  const withEvidenceCount = useMemo(() => reports.filter((report) => Boolean(report.evidence_url)).length, [reports]);
+  const slaOverdueCount = useMemo(() => reports.filter((report) => getSlaMeta(report.created_at, report.status).overdue).length, [reports]);
 
   const closeSelectedReport = useCallback(() => {
     setSelectedReport(null);
@@ -285,6 +312,12 @@ export default function PublicDashboardPage() {
                 Beranda
               </Link>
               <Link
+                href="/bantuan"
+                className="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+              >
+                Bantuan Singkat
+              </Link>
+              <Link
                 href="/admin"
                 className="inline-flex items-center justify-center rounded-full bg-navy-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-navy-800"
               >
@@ -297,7 +330,7 @@ export default function PublicDashboardPage() {
             <MetricCard label="Total Laporan" value={totalReports} tone="navy" />
             <MetricCard label="Sedang Diproses" value={verificationQueue} tone="amber" />
             <MetricCard label="Sudah Terbit" value={publishedReports} tone="emerald" />
-            <MetricCard label="Ada Bukti Foto" value={withEvidenceCount} tone="cyan" />
+            <MetricCard label="SLA Terlambat" value={slaOverdueCount} tone="cyan" />
           </div>
         </header>
 
@@ -353,6 +386,13 @@ export default function PublicDashboardPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="search"
+                value={reportSearch}
+                onChange={(event) => setReportSearch(event.target.value)}
+                placeholder="Cari kode tiket, isi, atau prodi..."
+                className="min-w-[260px] rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+              />
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
@@ -365,7 +405,7 @@ export default function PublicDashboardPage() {
                     {value}
                   </option>
                 ))}
-              </select>              
+              </select>                            
               <button
                 type="button"
                 onClick={() => setShowStatusGuideModal(true)}
@@ -425,6 +465,7 @@ export default function PublicDashboardPage() {
                   >
                     <div className="space-y-3 text-sm text-slate-700">
                       <div><span className="font-semibold text-slate-900">Waktu:</span> {formatDate(report.created_at)}</div>
+                        <div><span className="font-semibold text-slate-900">Kode Tiket:</span> <span className="font-mono text-xs font-semibold text-navy-900">{parseReportCode(report.additional_data) || '-'}</span></div>
                       <div><span className="font-semibold text-slate-900">Status:</span> <StatusBadge status={report.status} /></div>
                       <div><span className="font-semibold text-slate-900">Kategori:</span> {categoryLabels[report.category] ?? report.category}</div>
                       <div>
@@ -468,6 +509,7 @@ export default function PublicDashboardPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Detail Laporan Publik</p>
                 <h3 className="mt-1 text-2xl font-bold text-navy-950">{categoryLabels[selectedReport.category] ?? selectedReport.category}</h3>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Kode Tiket: {parseReportCode(selectedReport.additional_data) || '-'}</p>
               </div>
               <button
                 type="button"
@@ -481,6 +523,7 @@ export default function PublicDashboardPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
               <div className="space-y-4">
                 <InfoRow label="Waktu" value={formatDate(selectedReport.created_at)} />
+                <InfoRow label="Kode Tiket" value={parseReportCode(selectedReport.additional_data) || '-'} />
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Status</div>
                   <div className="mt-2"><StatusBadge status={selectedReport.status} /></div>
@@ -499,6 +542,12 @@ export default function PublicDashboardPage() {
                   <InfoRow label="Catatan Admin/Redaksi" value={getRedaksiNote(selectedReport.additional_data)} />
                 )}
                 <AdditionalDataCard data={selectedReport.additional_data} />
+
+                {parseReportAttachments(selectedReport.additional_data).length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                    Ada {parseReportAttachments(selectedReport.additional_data).length} lampiran pada laporan ini. Untuk pratinjau lengkap, lihat detail admin.
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">

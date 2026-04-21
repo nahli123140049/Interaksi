@@ -28,6 +28,14 @@ import {
   type FlagType,
   type FlagPriority
 } from '@/lib/newFeatures';
+import {
+  formatBytes,
+  getAttachmentLabel,
+  getReportSearchText,
+  getSlaMeta,
+  parseReportAttachments,
+  parseReportCode
+} from '@/lib/reportUtils';
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard';
 import { AuditLogViewer } from '@/components/AuditLogViewer';
 import { ModerationFlagsPanel } from '@/components/ModerationFlagsPanel';
@@ -44,7 +52,7 @@ type ReportItem = {
   description: string;
   evidence_url: string | null;
   status: string;
-  additional_data: Record<string, string> | null;
+  additional_data: Record<string, unknown> | null;
 };
 
 type NewsItem = {
@@ -128,11 +136,19 @@ function getStatusMeta(status: string): StatusMeta {
   return statusMetaMap[status] ?? statusMetaMap['Menunggu Verifikasi'];
 }
 
-function formatAdditionalDataLines(data: Record<string, string> | null, excludedKeys: string[] = []) {
+function formatAdditionalDataLines(data: Record<string, unknown> | null, excludedKeys: string[] = []) {
   if (!data) return [] as Array<{ key: string; label: string; value: string }>;
 
   return Object.entries(data)
-    .filter(([key, value]) => !excludedKeys.includes(key) && key !== 'evidence_urls' && key !== 'uploaded_photo_names' && String(value ?? '').trim().length > 0)
+    .filter(
+      ([key, value]) =>
+        !excludedKeys.includes(key) &&
+        key !== 'evidence_urls' &&
+        key !== 'uploaded_photo_names' &&
+        key !== 'report_code' &&
+        key !== 'attachments' &&
+        String(value ?? '').trim().length > 0
+    )
     .map(([key, value]) => ({
       key,
       label: additionalDataLabels[key] ?? key.replaceAll('_', ' '),
@@ -154,6 +170,8 @@ export default function AdminPage() {
 
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [reportSearch, setReportSearch] = useState('');
+  const [slaFilter, setSlaFilter] = useState<'all' | 'on-track' | 'warning' | 'overdue'>('all');
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
   const [statusDraft, setStatusDraft] = useState('Menunggu Verifikasi');
   const [redaksiNoteDraft, setRedaksiNoteDraft] = useState('');
@@ -417,9 +435,29 @@ export default function AdminPage() {
   }, []);
 
   const visibleReports = useMemo(() => {
-    if (categoryFilter === 'all') return reports;
-    return reports.filter((report) => report.category === categoryFilter);
-  }, [categoryFilter, reports]);
+    return reports.filter((report) => {
+      const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
+      const searchText = getReportSearchText([
+        parseReportCode(report.additional_data),
+        categoryLabels[report.category] ?? report.category,
+        report.reporter_name,
+        report.prodi,
+        report.whatsapp,
+        report.description,
+        report.status,
+        report.privacy
+      ]);
+      const matchesSearch = reportSearch.trim().length === 0 || searchText.includes(reportSearch.trim().toLowerCase());
+      const slaMeta = getSlaMeta(report.created_at, report.status);
+      const matchesSla =
+        slaFilter === 'all' ||
+        (slaFilter === 'on-track' && !slaMeta.warning && !slaMeta.overdue) ||
+        (slaFilter === 'warning' && slaMeta.warning && !slaMeta.overdue) ||
+        (slaFilter === 'overdue' && slaMeta.overdue);
+
+      return matchesCategory && matchesSearch && matchesSla;
+    });
+  }, [categoryFilter, reportSearch, reports, slaFilter]);
 
   const paginationState = useMemo(() => {
     return calculatePaginationState(currentPage, reportsPerPage, visibleReports.length);
@@ -440,6 +478,10 @@ export default function AdminPage() {
   const flaggedReportsCount = useMemo(
     () => Object.values(reportFlags).filter((flags) => flags.some((flag) => !flag.resolved_at)).length,
     [reportFlags]
+  );
+  const slaOverdueCount = useMemo(
+    () => reports.filter((report) => getSlaMeta(report.created_at, report.status).overdue).length,
+    [reports]
   );
 
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -917,11 +959,12 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <AdminMetricCard label="Laporan Masuk" value={totalReportsCount} tone="navy" />
             <AdminMetricCard label="Backlog Verifikasi" value={backlogCount} tone="amber" />
             <AdminMetricCard label="Sudah Terbit" value={publishedCount} tone="emerald" />
-            <AdminMetricCard label="Flag Aktif" value={flaggedReportsCount} tone="rose" />
+            <AdminMetricCard label="SLA Terlambat" value={slaOverdueCount} tone="rose" />
+            <AdminMetricCard label="Flag Aktif" value={flaggedReportsCount} tone="navy" />
           </div>
         </header>
 
@@ -963,6 +1006,13 @@ export default function AdminPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="search"
+                  value={reportSearch}
+                  onChange={(event) => setReportSearch(event.target.value)}
+                  placeholder="Cari kode tiket, isi, nama, prodi..."
+                  className="min-w-[260px] rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+                />
                 <label className="text-sm font-semibold text-slate-600">Filter Kategori</label>
                 <select
                   value={categoryFilter}
@@ -980,6 +1030,44 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
+                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setSlaFilter('all')}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      slaFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Semua SLA
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlaFilter('on-track')}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      slaFilter === 'on-track' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    On Track
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlaFilter('warning')}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      slaFilter === 'warning' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Warning
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlaFilter('overdue')}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      slaFilter === 'overdue' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Overdue
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -989,9 +1077,11 @@ export default function AdminPage() {
                   <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
                     <tr>
                       <th className="px-5 py-4 font-semibold">Timestamp</th>
+                      <th className="px-5 py-4 font-semibold">Kode Tiket</th>
                       <th className="px-5 py-4 font-semibold">Category</th>
                       <th className="px-5 py-4 font-semibold">Reporter</th>
                       <th className="px-5 py-4 font-semibold">Status</th>
+                      <th className="px-5 py-4 font-semibold">SLA</th>
                       <th className="px-5 py-4 font-semibold">Status Privasi</th>
                       <th className="px-5 py-4 font-semibold">Aksi</th>
                     </tr>
@@ -999,7 +1089,7 @@ export default function AdminPage() {
                   <tbody className="divide-y divide-slate-200 bg-white">
                     {paginatedReports.length === 0 ? (
                       <tr>
-                        <td className="px-5 py-8 text-sm text-slate-500" colSpan={6}>
+                        <td className="px-5 py-8 text-sm text-slate-500" colSpan={8}>
                           Belum ada laporan untuk filter yang dipilih.
                         </td>
                       </tr>
@@ -1007,6 +1097,9 @@ export default function AdminPage() {
                       paginatedReports.map((report) => (
                         <tr key={report.id} className="align-top">
                           <td className="px-5 py-4 text-slate-600">{formatDate(report.created_at)}</td>
+                          <td className="px-5 py-4 font-mono text-xs font-semibold text-navy-900">
+                            {parseReportCode(report.additional_data) || '-'}
+                          </td>
                           <td className="px-5 py-4 font-medium text-navy-900">{categoryLabels[report.category] ?? report.category}</td>
                           <td className="px-5 py-4 text-slate-600">
                             <div className="font-medium text-slate-900">{report.reporter_name || 'Anonim'}</div>
@@ -1014,6 +1107,9 @@ export default function AdminPage() {
                           </td>
                           <td className="px-5 py-4">
                             <StatusBadge status={report.status} />
+                          </td>
+                          <td className="px-5 py-4">
+                            <SlaBadge createdAt={report.created_at} status={report.status} />
                           </td>
                           <td className="px-5 py-4 text-slate-600">{report.privacy}</td>
                           <td className="px-5 py-4">
@@ -1260,6 +1356,7 @@ export default function AdminPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
               <div className="space-y-4">
                 <InfoRow label="Timestamp" value={formatDate(selectedReport.created_at)} />
+                <InfoRow label="Kode Tiket" value={parseReportCode(selectedReport.additional_data) || '-'} />
                 <InfoRow label="Reporter" value={selectedReport.reporter_name || '-'} />
                 <InfoRow label="Program Studi & Angkatan" value={selectedReport.prodi} />
                 <InfoRow label="WhatsApp" value={selectedReport.whatsapp} />
@@ -1310,6 +1407,8 @@ export default function AdminPage() {
                 )}
                 <AdditionalDataCard data={selectedReport.additional_data} />
 
+                <AttachmentPanel attachments={parseReportAttachments(selectedReport.additional_data)} />
+
                 {reportFlags[selectedReport.id] && (
                   <ModerationFlagsPanel
                     reportId={selectedReport.id}
@@ -1350,7 +1449,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>{meta.label}</span>;
 }
 
-function AdditionalDataCard({ data }: { data: Record<string, string> | null }) {
+function AdditionalDataCard({ data }: { data: Record<string, unknown> | null }) {
   const lines = formatAdditionalDataLines(data, ['opini', 'redaksi_note']);
 
   return (
@@ -1376,6 +1475,70 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
       <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-800">{value}</div>
+    </div>
+  );
+}
+
+function SlaBadge({ createdAt, status }: { createdAt: string; status: string }) {
+  const sla = getSlaMeta(createdAt, status);
+  const toneClass =
+    sla.tone === 'rose'
+      ? 'border-rose-200 bg-rose-50 text-rose-800'
+      : sla.tone === 'amber'
+        ? 'border-amber-200 bg-amber-50 text-amber-800'
+        : sla.tone === 'emerald'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-cyan-200 bg-cyan-50 text-cyan-800';
+
+  return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${toneClass}`}>{sla.label}</span>;
+}
+
+function AttachmentPanel({ attachments }: { attachments: ReturnType<typeof parseReportAttachments> }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Lampiran</div>
+      {attachments.length === 0 ? (
+        <div className="mt-1 text-sm leading-6 text-slate-500">Tidak ada lampiran yang tersimpan.</div>
+      ) : (
+        <div className="mt-3 space-y-4">
+          {attachments.map((attachment, index) => (
+            <div key={`${attachment.url}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {getAttachmentLabel(attachment.kind)} - {attachment.name}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {attachment.mime} {attachment.size > 0 ? `• ${formatBytes(attachment.size)}` : ''}
+                  </div>
+                </div>
+                <a
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-navy-200 bg-white px-3 py-1 text-xs font-semibold text-navy-800 transition hover:border-navy-300 hover:text-navy-950"
+                >
+                  Buka
+                </a>
+              </div>
+
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                {attachment.kind === 'image' ? (
+                  <img src={attachment.url} alt={attachment.name} className="h-56 w-full object-contain" />
+                ) : attachment.kind === 'pdf' ? (
+                  <iframe title={attachment.name} src={attachment.url} className="h-96 w-full" />
+                ) : attachment.kind === 'video' ? (
+                  <video controls src={attachment.url} className="h-96 w-full bg-black" />
+                ) : (
+                  <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-slate-500">
+                    Pratinjau tidak tersedia. Gunakan tombol Buka.
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

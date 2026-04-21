@@ -4,6 +4,15 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient';
+import {
+  buildAttachmentMetadata,
+  detectAttachmentKind,
+  formatBytes,
+  generateReportCode,
+  getAttachmentLabel,
+  getReportCategoryCode,
+  validateAttachmentFile
+} from '@/lib/reportUtils';
 
 type ReportPageProps = {
   params: {
@@ -72,15 +81,8 @@ const initialFormState: FieldMap = {
 };
 
 function getAdditionalData(category: string, form: FieldMap) {
-  const evidenceUrls = form.buktiFoto.map((file) => file.name).filter(Boolean);
-
   return {
     opini: form.opini.trim(),
-    ...(evidenceUrls.length > 0
-      ? {
-          uploaded_photo_names: evidenceUrls
-        }
-      : {}),
     ...(category === 'fasilitas'
       ? {
           gedung_lokasi: form.gedungLokasi.trim(),
@@ -119,15 +121,17 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [selectedFilesSummary, setSelectedFilesSummary] = useState<string[]>([]);
+  const [lastReportCode, setLastReportCode] = useState('');
 
   const updateField = <K extends keyof FieldMap>(field: K, value: FieldMap[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
   const validateForm = () => {
-        if (form.buktiFoto.length > 5) {
-          return 'Maksimal upload 5 foto dalam satu laporan.';
-        }
+    if (form.buktiFoto.length > 5) {
+      return 'Maksimal upload 5 lampiran dalam satu laporan.';
+    }
 
     if (!form.programStudiAngkatan.trim() || !form.whatsapp.trim() || !form.deskripsiMasalah.trim()) {
       return 'Lengkapi Program Studi & Angkatan, Nomor WhatsApp, dan Deskripsi Masalah.';
@@ -176,24 +180,36 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
     setIsSubmitting(true);
 
     try {
+      const reportCode = generateReportCode(category);
       let evidenceUrl: string | null = null;
-      const evidenceUrls: string[] = [];
+      const attachments: Array<{
+        url: string;
+        name: string;
+        mime: string;
+        size: number;
+        kind: string;
+      }> = [];
 
       if (form.buktiFoto.length > 0) {
         for (const photo of form.buktiFoto.slice(0, 5)) {
-          const extension = photo.name.split('.').pop() ?? 'jpg';
-          const fileName = `${category}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+          const validationError = validateAttachmentFile(photo);
+          if (validationError) {
+            throw new Error(`${photo.name}: ${validationError}`);
+          }
+
+          const extension = photo.name.split('.').pop() ?? 'bin';
+          const fileName = `${category}/${reportCode}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
           const { error: uploadError } = await supabase.storage.from('evidence').upload(fileName, photo, { upsert: false });
 
           if (uploadError) {
-            throw new Error(`Upload bukti gagal: ${uploadError.message}`);
+            throw new Error(`Upload lampiran gagal: ${uploadError.message}`);
           }
 
           const { data } = supabase.storage.from('evidence').getPublicUrl(fileName);
-          evidenceUrls.push(data.publicUrl);
+          attachments.push(buildAttachmentMetadata(photo, data.publicUrl));
         }
 
-        evidenceUrl = evidenceUrls[0] ?? null;
+        evidenceUrl = attachments.find((item) => item.kind === 'image')?.url ?? attachments[0]?.url ?? null;
       }
 
       const { error: insertError } = await supabase.from('reports').insert({
@@ -205,8 +221,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
         description: form.deskripsiMasalah.trim(),
         evidence_url: evidenceUrl,
         additional_data: {
+          report_code: reportCode,
+          attachments,
           ...getAdditionalData(category, form),
-          ...(evidenceUrls.length > 0 ? { evidence_urls: evidenceUrls } : {})
+          ...(attachments.length > 0 ? { evidence_urls: attachments.map((item) => item.url) } : {})
         }
       });
 
@@ -214,12 +232,25 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
         throw new Error(`Gagal menyimpan laporan: ${insertError.message}`);
       }
 
-      setMessage('Laporan berhasil dikirim. Terima kasih sudah menyuarakan isu kampus.');
+      setMessage(`Laporan berhasil dikirim. Nomor tiket kamu: ${reportCode}. Terima kasih sudah menyuarakan isu kampus.`);
+      setLastReportCode(reportCode);
       setForm(initialFormState);
+      setSelectedFilesSummary([]);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Terjadi kesalahan saat mengirim laporan.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCopyTicketCode = async () => {
+    if (!lastReportCode) return;
+
+    try {
+      await navigator.clipboard.writeText(lastReportCode);
+      setMessage(`Nomor tiket ${lastReportCode} berhasil disalin.`);
+    } catch {
+      setError('Gagal menyalin nomor tiket. Silakan salin manual.');
     }
   };
 
@@ -255,8 +286,9 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
               <p className="mt-4 max-w-md text-sm leading-7 text-blue-50/85">{config.subtitle}</p>
 
               <div className="mt-8 grid gap-3 text-sm text-blue-50/90">
-                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">Data umum: nama/inisial, prodi, WhatsApp, privasi, deskripsi, dan bukti foto.</div>
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">Data umum: nama/inisial, prodi, WhatsApp, privasi, deskripsi, dan lampiran bukti.</div>
                 {extraFields.length > 0 && <div className="rounded-2xl border border-white/10 bg-white/10 p-4">Field khusus: {extraFields.join(' + ')}</div>}
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">Kode tiket akan otomatis diawali {getReportCategoryCode(category)} dan dipakai untuk pencarian.</div>
               </div>
             </div>
 
@@ -270,9 +302,14 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Form Pelaporan</p>
               <h2 className="mt-1 text-2xl font-bold text-navy-950">Isi laporan secara lengkap</h2>
             </div>
-            <Link href="/" className="text-sm font-semibold text-navy-700 hover:text-navy-900">
-              Beranda
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link href="/bantuan" className="text-sm font-semibold text-amber-700 hover:text-amber-900">
+                Bantuan Singkat
+              </Link>
+              <Link href="/" className="text-sm font-semibold text-navy-700 hover:text-navy-900">
+                Beranda
+              </Link>
+            </div>
           </div>
 
           <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
@@ -376,31 +413,72 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
             />
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Upload Bukti Foto</label>
+              <label className="text-sm font-semibold text-slate-700">Upload Lampiran Bukti</label>
               <input
                 type="file"
                 multiple
-                accept="image/*"
-                title="Upload Bukti Foto"
+                accept="image/*,application/pdf,video/*"
+                title="Upload Lampiran Bukti"
                 onChange={(event) => {
                   const files = Array.from(event.target.files ?? []);
                   if (files.length > 5) {
-                    setError('Maksimal upload 5 foto dalam satu laporan.');
+                    setError('Maksimal upload 5 lampiran dalam satu laporan.');
                     updateField('buktiFoto', files.slice(0, 5));
+                    setSelectedFilesSummary(
+                      files.slice(0, 5).map((file) => `${file.name} (${getAttachmentLabel(detectAttachmentKind(file.type, file.name))})`)
+                    );
+                    return;
+                  }
+                  const validationErrors = files.map((file) => validateAttachmentFile(file)).filter(Boolean);
+                  if (validationErrors.length > 0) {
+                    setError(validationErrors[0]);
+                    updateField('buktiFoto', []);
+                    setSelectedFilesSummary([]);
                     return;
                   }
                   updateField('buktiFoto', files);
+                  setSelectedFilesSummary(
+                    files.map((file) => `${file.name} (${getAttachmentLabel(detectAttachmentKind(file.type, file.name))}, ${formatBytes(file.size)})`)
+                  );
                 }}
                 className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
               />
               {form.buktiFoto.length > 0 && (
-                <p className="text-xs text-slate-600">{form.buktiFoto.length} foto dipilih (maksimal 5).</p>
+                <div className="space-y-1 text-xs text-slate-600">
+                  <p>{form.buktiFoto.length} lampiran dipilih (maksimal 5).</p>
+                  {selectedFilesSummary.length > 0 && (
+                    <ul className="space-y-1">
+                      {selectedFilesSummary.map((name) => (
+                        <li key={name} className="rounded-lg bg-slate-50 px-3 py-2">
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
-              <p className="text-xs leading-5 text-slate-500">INTERAKSI menjamin kerahasiaan identitas informan sesuai dengan UU Pers No. 40 Tahun 1999 dan Kode Etik Jurnalistik.</p>
+              <p className="text-xs leading-5 text-slate-500">Format yang diterima: foto, PDF, dan video. INTERAKSI menjamin kerahasiaan identitas informan sesuai dengan UU Pers No. 40 Tahun 1999 dan Kode Etik Jurnalistik.</p>
             </div>
 
             {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
             {message && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
+            {lastReportCode && (
+              <div className="rounded-2xl border border-navy-200 bg-navy-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-navy-700">Nomor Tiket Laporan</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-navy-300 bg-white px-4 py-1.5 font-mono text-sm font-bold text-navy-900">
+                    {lastReportCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyTicketCode}
+                    className="rounded-full border border-navy-300 bg-white px-4 py-1.5 text-xs font-semibold text-navy-800 transition hover:border-navy-400 hover:text-navy-950"
+                  >
+                    Copy Kode
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
