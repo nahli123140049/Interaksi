@@ -97,16 +97,16 @@ export function Navbar() {
               <Link 
                 key={link.name}
                 href={link.href} 
-                className="text-2xl font-display font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4"
                 onClick={() => setMobileMenuOpen(false)}
+                className="text-2xl font-display font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-4"
               >
                 {link.name}
               </Link>
             ))}
             <Link 
               href="/lacak" 
-              className="mt-4 text-center rounded-2xl bg-amber-500 px-6 py-4 text-lg font-bold text-white shadow-lg"
               onClick={() => setMobileMenuOpen(false)}
+              className="mt-4 text-center rounded-2xl bg-navy-950 dark:bg-white px-6 py-4 text-lg font-bold text-white dark:text-navy-950 shadow-lg"
             >
               Lacak Laporan Anda
             </Link>
