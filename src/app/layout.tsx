@@ -29,17 +29,10 @@ export default function RootLayout({
   return (
     <html lang="id" className={`${displayFont.variable} ${bodyFont.variable}`} suppressHydrationWarning>
       <head>
+        {/* Inline script: prevent dark mode flash sebelum React hydrate */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
-              } catch (_) {}
-            `,
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`
           }}
         />
       </head>

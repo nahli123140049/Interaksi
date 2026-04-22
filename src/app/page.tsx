@@ -1,48 +1,153 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Navbar } from '@/components/Navbar';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { getReportCategoryTitle } from '@/lib/reportUtils';
+import { StatusBadge } from '@/components/StatusBadge';
 
-// === METRICS FETCHING ===
-async function getLandingData() {
-  // Default static metrics fallback
-  const fallback = {
-    totalLaporan: 1245,
-    totalTerbit: 890,
-    recentReports: []
-  };
+// === COMPONENTS FETCHING SUPABASE DATA (WITH SUSPENSE) ===
 
-  if (!isSupabaseConfigured) return fallback;
+async function LiveMetrics() {
+  const fallback = { totalLaporan: 1245, totalTerbit: 890 };
+  let data = fallback;
 
-  try {
-    const { count: totalLaporan } = await supabase
-      .from('reports')
-      .select('*', { count: 'exact', head: true });
+  if (isSupabaseConfigured) {
+    try {
+      const { count: totalLaporan } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true });
 
-    const { count: totalTerbit } = await supabase
-      .from('reports')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['Telah Terbit', 'Arsip Internal']);
+      const { count: totalTerbit } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['Telah Terbit', 'Arsip Internal']);
 
-    const { data: recentReports } = await supabase
-      .from('reports')
-      .select('id, category, description, created_at, status, additional_data')
-      .in('status', ['Telah Terbit', 'Arsip Internal'])
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    return {
-      totalLaporan: totalLaporan !== null ? totalLaporan : fallback.totalLaporan,
-      totalTerbit: totalTerbit !== null ? totalTerbit : fallback.totalTerbit,
-      recentReports: recentReports || fallback.recentReports
-    };
-  } catch (error) {
-    console.error('Error fetching landing data:', error);
-    return fallback;
+      data = {
+        totalLaporan: totalLaporan !== null ? totalLaporan : fallback.totalLaporan,
+        totalTerbit: totalTerbit !== null ? totalTerbit : fallback.totalTerbit,
+      };
+    } catch (error) {
+      console.error('Error fetching live metrics:', error);
+    }
   }
+
+  return (
+    <>
+      <div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Total Laporan Masuk</p>
+        <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{data.totalLaporan.toLocaleString('id-ID')}</p>
+      </div>
+      <div className="h-px w-full bg-slate-200 dark:bg-slate-800"></div>
+      <div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Laporan Telah Terbit</p>
+        <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{data.totalTerbit.toLocaleString('id-ID')}</p>
+      </div>
+    </>
+  );
 }
+
+function LiveMetricsSkeleton() {
+  return (
+    <>
+      <div className="animate-pulse">
+        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+        <div className="h-10 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+      </div>
+      <div className="h-px w-full bg-slate-200 dark:bg-slate-800"></div>
+      <div className="animate-pulse">
+        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+        <div className="h-10 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+      </div>
+    </>
+  );
+}
+
+type ReportData = {
+  id: string | number;
+  category: string;
+  description: string;
+  created_at: string;
+  status: string;
+  additional_data?: { report_code?: string } | any;
+};
+
+async function RecentReports() {
+  let reports: ReportData[] = [];
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data } = await supabase
+        .from('reports')
+        .select('id, category, description, created_at, status, additional_data')
+        .order('created_at', { ascending: false })
+        .limit(3);
+      reports = data || [];
+    } catch (error) {
+      console.error('Error fetching recent reports:', error);
+    }
+  }
+
+  if (reports.length === 0) {
+    return (
+      <div className="rounded-2xl bg-white/50 dark:bg-white/5 border border-dashed border-slate-300 dark:border-slate-700 p-12 text-center">
+        <p className="text-slate-500 dark:text-slate-400">Belum ada laporan publik terkini.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-6 md:grid-cols-3">
+      {reports.map((report) => (
+        <div key={report.id} className="rounded-2xl bg-white dark:bg-slate-800/50 p-6 shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:-translate-y-1 hover:shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <StatusBadge status={report.status} />
+            <span className="text-xs font-medium text-slate-400">
+              {new Date(report.created_at).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}
+            </span>
+          </div>
+          <h4 className="font-display font-bold text-lg text-navy-950 dark:text-white mb-2">{getReportCategoryTitle(report.category)}</h4>
+          <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-3 mb-6">{report.description}</p>
+          
+          {report.additional_data?.report_code && (
+            <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+              <span className="text-xs font-mono font-bold text-slate-400">TKT: {report.additional_data.report_code}</span>
+              <Link href={`/lacak?kode=${report.additional_data.report_code}`} className="text-xs font-bold text-amber-600 hover:text-amber-700">Lacak &rarr;</Link>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecentReportsSkeleton() {
+  return (
+    <div className="grid gap-6 md:grid-cols-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-2xl bg-white dark:bg-slate-800/50 p-6 shadow-sm border border-slate-200 dark:border-slate-700 animate-pulse">
+          <div className="flex justify-between mb-4">
+            <div className="h-6 w-24 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+            <div className="h-4 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+          </div>
+          <div className="h-6 w-3/4 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+          <div className="space-y-2 mb-6">
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded"></div>
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded"></div>
+            <div className="h-4 w-2/3 bg-slate-200 dark:bg-slate-700 rounded"></div>
+          </div>
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+            <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+            <div className="h-4 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// === STATIC DATA ===
 
 const categories = [
   {
@@ -119,9 +224,7 @@ const tickerItems = [
   'Baca rilis investigasi di kanal Berita Redaksi'
 ];
 
-export default async function HomePage() {
-  const landingData = await getLandingData();
-
+export default function HomePage() {
   return (
     <main className="min-h-screen transition-colors duration-500 bg-slate-50 dark:bg-navy-950 text-slate-900 dark:text-slate-50 overflow-x-hidden pt-20">
       <ThemeToggle />
@@ -135,11 +238,11 @@ export default async function HomePage() {
         
         {/* Main Hero Content */}
         <div className="flex-1 flex items-center justify-center relative z-10 px-6 py-12 lg:px-10">
-          <div className="mx-auto w-full max-w-7xl grid gap-12 lg:grid-cols-[1.2fr_0.8fr] items-center">
+          <div className="mx-auto w-full max-w-7xl grid gap-10 lg:gap-12 lg:grid-cols-[1.2fr_0.8fr] items-center">
             
             {/* Left Content */}
             <div className="space-y-8">
-              <div className="inline-flex h-16 items-center justify-start rounded-2xl bg-white px-4 shadow-sm border border-slate-200 dark:border-white/10 dark:bg-white backdrop-blur-md">
+              <div className="inline-flex h-16 items-center justify-start rounded-2xl bg-white px-4 shadow-sm border border-slate-200 dark:border-white dark:bg-white backdrop-blur-md">
                 <Image
                   src="/images/LOGO-INTERAKSI.png"
                   alt="Logo INTERAKSI"
@@ -151,9 +254,9 @@ export default async function HomePage() {
               </div>
               
               <div className="space-y-4">
-                <h1 className="font-display text-5xl font-bold tracking-tight leading-tight md:text-6xl lg:text-7xl text-navy-950 dark:text-white">
+                <h1 className="font-display text-5xl font-bold tracking-tight leading-tight md:text-6xl lg:text-7xl text-navy-950 dark:text-amber-400">
                   Suara Mahasiswa,<br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-200">Didengar Redaksi.</span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-500 dark:from-white dark:to-slate-200">Didengar Redaksi.</span>
                 </h1>
                 <p className="max-w-xl text-lg text-slate-600 dark:text-slate-300">
                   Platform pelaporan independen yang dikelola oleh UKM Lembaga Pers ITERA untuk mengubah keluhan menjadi data, dan data menjadi aksi redaksi.
@@ -185,25 +288,19 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Right Content - Floating Card */}
-            <div className="relative justify-self-center lg:justify-self-end w-full max-w-sm">
+            {/* Right Content - Floating Card with Suspense */}
+            <div className="relative justify-self-center lg:justify-self-end w-full max-w-sm lg:mt-0">
               <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-r from-amber-400 to-cyan-400 opacity-20 blur-xl"></div>
-              <div className="relative rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 p-8 backdrop-blur-md shadow-xl dark:shadow-2xl">
+              <div className="relative rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 p-6 sm:p-8 backdrop-blur-md shadow-xl dark:shadow-2xl">
                 <div className="mb-6 flex items-center gap-3">
                   <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span className="text-sm font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Live Metrics</span>
                 </div>
                 
                 <div className="space-y-6">
-                  <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Total Laporan Masuk</p>
-                    <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{landingData.totalLaporan.toLocaleString('id-ID')}</p>
-                  </div>
-                  <div className="h-px w-full bg-slate-200 dark:bg-slate-800"></div>
-                  <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Laporan Telah Terbit</p>
-                    <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{landingData.totalTerbit.toLocaleString('id-ID')}</p>
-                  </div>
+                  <Suspense fallback={<LiveMetricsSkeleton />}>
+                    <LiveMetrics />
+                  </Suspense>
                 </div>
               </div>
             </div>
@@ -211,14 +308,23 @@ export default async function HomePage() {
         </div>
 
         {/* Bottom Ticker Strip */}
-        <div className="w-full bg-[#d97706] py-3 z-10 border-t border-amber-600 mt-auto">
+        <div className="w-full bg-amber-600 dark:bg-amber-700 py-4 z-10 border-t border-amber-500/30 mt-auto overflow-hidden relative">
+          <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-amber-600 dark:from-amber-700 to-transparent z-20"></div>
+          <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-amber-600 dark:from-amber-700 to-transparent z-20"></div>
+          
           <div className="headline-ticker">
-            <div className="headline-track" style={{ animationDuration: '40s' }}>
+            <div className="headline-track" style={{ animationDuration: '60s' }}>
               {[...tickerItems, ...tickerItems, ...tickerItems].map((item, index) => (
-                <span key={`${item}-${index}`} className="inline-flex items-center gap-3 px-6 text-sm font-bold text-white uppercase tracking-widest">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/50"></span>
-                  {item}
-                </span>
+                <div key={`${item}-${index}`} className="inline-flex items-center gap-4 px-10 whitespace-nowrap">
+                  <div className="flex items-center gap-2 bg-white/20 px-2.5 py-0.5 rounded text-[10px] font-black tracking-tighter text-white">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
+                    NEWS
+                  </div>
+                  <span className="text-sm font-bold text-white tracking-wide">
+                    {item}
+                  </span>
+                  <span className="text-white/40 font-light mx-4">•</span>
+                </div>
               ))}
             </div>
           </div>
@@ -231,7 +337,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl relative z-10">
           <div className="text-center mb-16">
             <p className="text-sm font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">Pilih Kategori</p>
-            <h2 className="mt-3 font-display text-3xl font-bold text-navy-950 dark:text-white md:text-4xl">
+            <h2 className="mt-3 font-display text-3xl font-bold text-navy-950 dark:text-amber-400 md:text-4xl">
               Laporan apa yang ingin kamu sampaikan?
             </h2>
           </div>
@@ -241,18 +347,18 @@ export default async function HomePage() {
               <Link
                 key={cat.slug}
                 href={`/report/${cat.slug}`}
-                className={`group animate-fade-in-up flex flex-col justify-between rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(245,158,11,0.25)] hover:border-amber-400 border-l-4 ${cat.accent} opacity-0`}
+                className={`group animate-fade-in-up flex flex-col justify-between rounded-2xl bg-white dark:bg-slate-900/50 p-6 shadow-md border border-slate-200 dark:border-slate-800 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(245,158,11,0.15)] dark:hover:shadow-[0_0_40px_rgba(245,158,11,0.1)] hover:border-amber-400 border-l-4 ${cat.accent} opacity-0`}
                 style={{ animationDelay: `${index * 150}ms` }}
               >
                 <div>
                   <div className="flex justify-between items-start mb-6">
-                    <span className="text-slate-400 dark:text-slate-400 group-hover:text-navy-950 dark:group-hover:text-navy-950 transition-colors duration-300">{cat.icon}</span>
-                    <span className="font-mono text-xs font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-100 px-2 py-1 rounded">0{index + 1}</span>
+                    <span className="text-slate-400 dark:text-slate-500 group-hover:text-navy-950 dark:group-hover:text-amber-500 transition-colors duration-300">{cat.icon}</span>
+                    <span className="font-mono text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">0{index + 1}</span>
                   </div>
-                  <h3 className="font-display text-xl font-bold text-navy-950 dark:text-navy-950 mb-3">{cat.title}</h3>
-                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-600 mb-8">{cat.description}</p>
+                  <h3 className="font-display text-xl font-bold text-navy-950 dark:text-white mb-3">{cat.title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 mb-8">{cat.description}</p>
                 </div>
-                <div className="flex items-center text-sm font-bold text-slate-500 dark:text-slate-500 transition-colors group-hover:text-amber-600 dark:group-hover:text-amber-600">
+                <div className="flex items-center text-sm font-bold text-slate-500 dark:text-slate-400 transition-colors group-hover:text-amber-600 dark:group-hover:text-amber-500">
                   Lapor Sekarang <span className="ml-2 transition-transform group-hover:translate-x-1">&rarr;</span>
                 </div>
               </Link>
@@ -261,13 +367,13 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* SECTION 3: LAPORAN TERKINI (RECENT REPORTS) */}
-      <section className="py-24 px-6 lg:px-10 bg-slate-100 dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800">
+      {/* SECTION 3: LAPORAN TERKINI (RECENT REPORTS) WITH SUSPENSE */}
+      <section className="py-16 md:py-24 px-6 lg:px-10 bg-slate-100 dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800">
         <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
             <div>
               <p className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-500 uppercase mb-3">Wujud Nyata Aksi</p>
-              <h2 className="font-display text-3xl font-bold text-navy-950 dark:text-white md:text-4xl">
+              <h2 className="font-display text-3xl font-bold text-navy-950 dark:text-amber-400 md:text-4xl">
                 Laporan Terkini
               </h2>
             </div>
@@ -276,35 +382,10 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          {landingData.recentReports.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-3">
-              {landingData.recentReports.map((report: any) => (
-                <div key={report.id} className="rounded-2xl bg-white dark:bg-white p-6 shadow-sm border border-slate-200 dark:border-white transition-all hover:-translate-y-1 hover:shadow-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                      Telah Terbit
-                    </span>
-                    <span className="text-xs font-medium text-slate-400">
-                      {new Date(report.created_at).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-                  <h4 className="font-display font-bold text-lg text-navy-950 mb-2">{getReportCategoryTitle(report.category)}</h4>
-                  <p className="text-sm text-slate-600 line-clamp-3 mb-6">{report.description}</p>
-                  
-                  {report.additional_data?.report_code && (
-                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                      <span className="text-xs font-mono font-bold text-slate-400">TKT: {report.additional_data.report_code}</span>
-                      <Link href={`/lacak?kode=${report.additional_data.report_code}`} className="text-xs font-bold text-amber-600 hover:text-amber-700">Lacak &rarr;</Link>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-white/50 dark:bg-white/5 border border-dashed border-slate-300 dark:border-slate-700 p-12 text-center">
-              <p className="text-slate-500 dark:text-slate-400">Belum ada laporan publik terkini.</p>
-            </div>
-          )}
+          <Suspense fallback={<RecentReportsSkeleton />}>
+            <RecentReports />
+          </Suspense>
+
         </div>
       </section>
 
@@ -313,11 +394,10 @@ export default async function HomePage() {
         <div className="absolute inset-0 bg-noise opacity-[0.02] dark:opacity-5 pointer-events-none mix-blend-overlay"></div>
         <div className="mx-auto max-w-7xl relative z-10 py-8">
           <div className="text-center mb-16">
-            <h2 className="font-display text-3xl font-bold text-navy-950 dark:text-white md:text-4xl">Gimana cara kerjanya?</h2>
+            <h2 className="font-display text-3xl font-bold text-navy-950 dark:text-amber-400 md:text-4xl">Gimana cara kerjanya?</h2>
           </div>
 
           <div className="relative max-w-4xl mx-auto">
-            {/* Desktop connecting line */}
             <div className="hidden md:block absolute top-10 left-0 w-full h-0.5 bg-transparent border-t-2 border-dashed border-slate-300 dark:border-slate-700"></div>
             
             <div className="grid gap-12 md:grid-cols-3 relative">
@@ -458,8 +538,10 @@ export default async function HomePage() {
           </div>
         </div>
 
+
+
         {/* Identitas Warna */}
-        <div className="mt-24 border-t border-slate-200 dark:border-slate-800 pt-16 mx-auto max-w-7xl">
+        <div className="mt-16 border-t border-slate-200 dark:border-slate-800 pt-16 mx-auto max-w-7xl">
           <div className="text-center mb-12">
             <h3 className="font-display text-2xl font-bold text-navy-950 dark:text-white">Filosofi Warna</h3>
             <p className="mt-2 text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Setiap palet warna INTERAKSI dirancang untuk merepresentasikan nilai-nilai inti dari UKM Lembaga Pers ITERA.</p>
@@ -471,7 +553,7 @@ export default async function HomePage() {
                 <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 shadow-inner group-hover:scale-110 transition-transform"></div>
                 <h4 className="font-bold text-lg text-navy-950 dark:text-navy-950">Deep Purple & Indigo</h4>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Melambangkan <strong className="text-indigo-600">independensi, kreativitas, dan wibawa</strong> UKM Lembaga Pers ITERA dalam menyajikan sudut pandang yang tajam dan tak memihak.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Melambangkan <strong className="text-indigo-600">independensi, kreativitas, dan wibawa</strong> lembaga pers dalam menyajikan sudut pandang yang tajam dan tak memihak.</p>
             </div>
             
             <div className="rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all hover:-translate-y-2 hover:shadow-xl hover:shadow-amber-500/20 group">
@@ -498,7 +580,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl grid gap-10 md:grid-cols-3 mb-12">
           {/* Col 1 */}
           <div>
-            <div className="inline-flex rounded-xl bg-white px-4 py-2 mb-4 shadow-sm border border-slate-200 dark:border-slate-800">
+            <div className="inline-flex rounded-xl bg-white dark:bg-white px-4 py-2 mb-4 shadow-sm border border-slate-200 dark:border-white">
               <Image
                 src="/images/LOGO-INTERAKSI.png"
                 alt="Logo INTERAKSI"
@@ -527,7 +609,7 @@ export default async function HomePage() {
           {/* Col 3 */}
           <div className="md:ml-auto">
             <h4 className="text-sm font-bold text-navy-950 dark:text-white mb-4">UKM Lembaga Pers ITERA</h4>
-            <div className="inline-flex rounded-xl bg-white px-2 py-2 mb-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="inline-flex rounded-xl bg-white dark:bg-white px-2 py-2 mb-4 border border-slate-200 dark:border-white shadow-sm">
               <Image
                 src="/images/lempers-flag.png"
                 alt="Bendera UKM Lembaga Pers ITERA"

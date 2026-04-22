@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient';
+import { Navbar } from '@/components/Navbar';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Toast } from '@/components/Toast';
 import {
   buildAttachmentMetadata,
   detectAttachmentKind,
@@ -123,6 +126,8 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
   const [error, setError] = useState('');
   const [selectedFilesSummary, setSelectedFilesSummary] = useState<string[]>([]);
   const [lastReportCode, setLastReportCode] = useState('');
+  const [showToast, setShowToast] = useState(false);
+  const [toastConfig, setToastConfig] = useState({ message: '', type: 'success' as 'success' | 'error' | 'info' });
 
   const updateField = <K extends keyof FieldMap>(field: K, value: FieldMap[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -248,9 +253,11 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
 
     try {
       await navigator.clipboard.writeText(lastReportCode);
-      setMessage(`Nomor tiket ${lastReportCode} berhasil disalin.`);
+      setToastConfig({ message: `Nomor tiket ${lastReportCode} disalin!`, type: 'success' });
+      setShowToast(true);
     } catch {
-      setError('Gagal menyalin nomor tiket. Silakan salin manual.');
+      setToastConfig({ message: 'Gagal menyalin nomor tiket.', type: 'error' });
+      setShowToast(true);
     }
   };
 
@@ -270,7 +277,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
+    <>
+      <Navbar />
+      <ThemeToggle />
+      <main className="min-h-screen px-4 py-20 text-slate-900 dark:text-slate-100 transition-colors duration-300 dark:bg-navy-950 md:px-6 lg:px-10">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <section className="relative overflow-hidden rounded-[2rem] bg-navy-950 px-6 py-8 text-white shadow-soft lg:px-8 lg:py-10">
           <div className={`absolute inset-0 bg-gradient-to-br ${config.accent} opacity-90`} />
@@ -296,17 +306,17 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
           </div>
         </section>
 
-        <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-          <div className="flex items-center justify-between gap-4 border-b border-slate-200/70 pb-5">
+        <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8 dark:bg-slate-900/80 dark:border-slate-700">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200/70 dark:border-slate-800 pb-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Form Pelaporan</p>
-              <h2 className="mt-1 text-2xl font-bold text-navy-950">Isi laporan secara lengkap</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700 dark:text-amber-500">Form Pelaporan</p>
+              <h2 className="mt-1 text-2xl font-bold text-navy-950 dark:text-white">Isi laporan secara lengkap</h2>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/bantuan" className="text-sm font-semibold text-amber-700 hover:text-amber-900">
+              <Link href="/bantuan" className="text-sm font-semibold text-amber-700 hover:text-amber-900 dark:text-amber-500">
                 Bantuan Singkat
               </Link>
-              <Link href="/" className="text-sm font-semibold text-navy-700 hover:text-navy-900">
+              <Link href="/" className="text-sm font-semibold text-navy-700 hover:text-navy-900 dark:text-slate-300">
                 Beranda
               </Link>
             </div>
@@ -441,7 +451,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
                     files.map((file) => `${file.name} (${getAttachmentLabel(detectAttachmentKind(file.type, file.name))}, ${formatBytes(file.size)})`)
                   );
                 }}
-                className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
+                className="block w-full cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-600 dark:text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 dark:file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
               />
               {form.buktiFoto.length > 0 && (
                 <div className="space-y-1 text-xs text-slate-600">
@@ -449,7 +459,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
                   {selectedFilesSummary.length > 0 && (
                     <ul className="space-y-1">
                       {selectedFilesSummary.map((name) => (
-                        <li key={name} className="rounded-lg bg-slate-50 px-3 py-2">
+                        <li key={name} className="rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2 text-slate-700 dark:text-slate-300">
                           {name}
                         </li>
                       ))}
@@ -463,16 +473,16 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
             {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
             {message && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
             {lastReportCode && (
-              <div className="rounded-2xl border border-navy-200 bg-navy-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-navy-700">Nomor Tiket Laporan</p>
+              <div className="rounded-2xl border border-navy-200 dark:border-slate-700 bg-navy-50 dark:bg-slate-800/50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-navy-700 dark:text-amber-500">Nomor Tiket Laporan</p>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <span className="rounded-full border border-navy-300 bg-white px-4 py-1.5 font-mono text-sm font-bold text-navy-900">
+                  <span className="rounded-full border border-navy-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-1.5 font-mono text-sm font-bold text-navy-900 dark:text-white">
                     {lastReportCode}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyTicketCode}
-                    className="rounded-full border border-navy-300 bg-white px-4 py-1.5 text-xs font-semibold text-navy-800 transition hover:border-navy-400 hover:text-navy-950"
+                    className="rounded-full border border-navy-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-1.5 text-xs font-semibold text-navy-800 dark:text-slate-200 transition hover:border-navy-400 hover:text-navy-950"
                   >
                     Copy Kode
                   </button>
@@ -484,14 +494,14 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center rounded-full bg-navy-950 dark:bg-white px-6 py-3 text-sm font-semibold text-white dark:text-navy-950 transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? 'Mengirim laporan...' : 'Sampaikan Aspirasi'}
               </button>
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:border-navy-200 hover:text-navy-900"
               >
                 Kembali
               </button>
@@ -499,7 +509,15 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
           </form>
         </section>
       </div>
-    </main>
+      </main>
+      {showToast && (
+        <Toast
+          message={toastConfig.message}
+          type={toastConfig.type}
+          onClose={() => setShowToast(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -518,7 +536,7 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-semibold text-slate-700">
+      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
         {label} {required ? <span className="text-red-500">*</span> : null}
       </label>
       <input
@@ -526,7 +544,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+        className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-900 dark:text-white outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-navy-300 focus:ring-4 focus:ring-navy-100 dark:focus:ring-slate-800"
       />
     </div>
   );
@@ -545,12 +563,12 @@ function SelectField({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-semibold text-slate-700">{label}</label>
+      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</label>
       <select
         value={value}
         title={label}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+        className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-900 dark:text-white outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100 dark:focus:ring-slate-800"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -577,7 +595,7 @@ function TextareaField({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-semibold text-slate-700">
+      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
         {label} {required ? <span className="text-red-500">*</span> : null}
       </label>
       <textarea
@@ -585,7 +603,7 @@ function TextareaField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         rows={6}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+        className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-900 dark:text-white outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-navy-300 focus:ring-4 focus:ring-navy-100 dark:focus:ring-slate-800"
       />
     </div>
   );
