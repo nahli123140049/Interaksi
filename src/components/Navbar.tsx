@@ -36,14 +36,14 @@ export function Navbar() {
             <div className="bg-white rounded-lg p-1.5 border border-slate-100 shadow-sm">
               <Image 
                 src="/images/lempers-flag.png" 
-                alt="Logo Lembaga Pers ITERA" 
+                alt="Logo UKM Lembaga Pers ITERA" 
                 width={32} 
                 height={32} 
                 className="h-7 w-auto object-contain transition-transform group-hover:scale-105" 
               />
             </div>
             <span className="font-display font-bold text-navy-950 dark:text-white hidden sm:block tracking-wide">
-              Lembaga Pers <span className="text-rose-600 dark:text-rose-500">ITERA</span>
+              UKM Lembaga Pers <span className="text-rose-600 dark:text-rose-500">ITERA</span>
             </span>
           </Link>
 
