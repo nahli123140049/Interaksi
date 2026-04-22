@@ -1,31 +1,114 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Navbar } from '@/components/Navbar';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { getReportCategoryTitle } from '@/lib/reportUtils';
+
+// === METRICS FETCHING ===
+async function getLandingData() {
+  // Default static metrics fallback
+  const fallback = {
+    totalLaporan: 1245,
+    totalTerbit: 890,
+    recentReports: []
+  };
+
+  if (!isSupabaseConfigured) return fallback;
+
+  try {
+    const { count: totalLaporan } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: totalTerbit } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['Telah Terbit', 'Arsip Internal']);
+
+    const { data: recentReports } = await supabase
+      .from('reports')
+      .select('id, category, description, created_at, status, additional_data')
+      .in('status', ['Telah Terbit', 'Arsip Internal'])
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    return {
+      totalLaporan: totalLaporan !== null ? totalLaporan : fallback.totalLaporan,
+      totalTerbit: totalTerbit !== null ? totalTerbit : fallback.totalTerbit,
+      recentReports: recentReports || fallback.recentReports
+    };
+  } catch (error) {
+    console.error('Error fetching landing data:', error);
+    return fallback;
+  }
+}
 
 const categories = [
   {
     slug: 'fasilitas',
     title: 'Fasilitas & Infrastruktur',
-    description: 'Laporkan gedung, ruang kelas, toilet, jaringan, atau fasilitas yang perlu perbaikan.'
+    description: 'Laporkan gedung, ruang kelas, toilet, jaringan, atau fasilitas yang perlu perbaikan.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6.75h1.5m-1.5 3h1.5m-1.5 3h1.5M9 21v-2.25a2.25 2.25 0 012.25-2.25h1.5a2.25 2.25 0 012.25 2.25V21" />
+      </svg>
+    ),
+    accent: 'border-amber-500',
+    hoverAccent: 'group-hover:border-amber-400',
+    glow: 'group-hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]'
   },
   {
     slug: 'akademik',
     title: 'Isu Akademik & Birokrasi',
-    description: 'Sampaikan kendala layanan akademik, administrasi, jadwal, atau prosedur kampus.'
+    description: 'Sampaikan kendala layanan akademik, administrasi, jadwal, atau prosedur kampus.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+      </svg>
+    ),
+    accent: 'border-amber-500',
+    hoverAccent: 'group-hover:border-amber-400',
+    glow: 'group-hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]'
   },
   {
     slug: 'politik',
     title: 'Politik & Organisasi Kampus',
-    description: 'Catat dinamika organisasi, kebijakan kampus, atau peristiwa yang butuh sorotan.'
+    description: 'Catat dinamika organisasi, kebijakan kampus, atau peristiwa yang butuh sorotan.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52v8.636c0 1.081-.407 2.115-1.144 2.894A15.35 15.35 0 0112 19.5c-2.482 0-4.836-.503-6.945-1.42a4.015 4.015 0 01-1.144-2.894V5.49m15 0v8.636m-15-8.636V14.13" />
+      </svg>
+    ),
+    accent: 'border-amber-500',
+    hoverAccent: 'group-hover:border-amber-400',
+    glow: 'group-hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]'
   },
   {
     slug: 'keamanan',
     title: 'Keamanan & Lingkungan',
-    description: 'Laporkan kejadian keamanan, area rawan, pencahayaan, dan kondisi lingkungan kampus.'
+    description: 'Laporkan kejadian keamanan, area rawan, pencahayaan, dan kondisi lingkungan kampus.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+      </svg>
+    ),
+    accent: 'border-amber-500',
+    hoverAccent: 'group-hover:border-amber-400',
+    glow: 'group-hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]'
   },
   {
     slug: 'lainnya',
     title: 'Pelaporan Lainnya',
-    description: 'Untuk isu di luar empat kategori utama, termasuk masukan, kritik, atau opini yang ingin dikutip redaksi.'
+    description: 'Untuk isu di luar empat kategori utama, termasuk masukan, kritik, atau opini yang ingin dikutip redaksi.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.82 1.508-2.316a7.5 7.5 0 10-7.516 0c.85.496 1.508 1.333 1.508 2.316V18" />
+      </svg>
+    ),
+    accent: 'border-amber-500',
+    hoverAccent: 'group-hover:border-amber-400',
+    glow: 'group-hover:shadow-[0_0_20px_rgba(245,158,11,0.15)]'
   }
 ];
 
@@ -36,172 +119,439 @@ const tickerItems = [
   'Baca rilis investigasi di kanal Berita Redaksi'
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const landingData = await getLandingData();
+
   return (
-    <main className="editorial-shell min-h-screen text-slate-900">
-      <section className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8 lg:px-10">
-        <header className="glass-panel reveal-fade rounded-[2rem] px-6 py-5 shadow-soft lg:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="flex h-16 w-48 items-center justify-start rounded-2xl border border-slate-200/80 bg-white px-4 shadow-card">
-                  <Image
-                    src="/images/LOGO-INTERAKSI.png"
-                    alt="Logo INTERAKSI"
-                    width={180}
-                    height={56}
-                    className="h-auto w-full object-contain"
-                    priority
-                  />
+    <main className="min-h-screen transition-colors duration-500 bg-slate-50 dark:bg-navy-950 text-slate-900 dark:text-slate-50 overflow-x-hidden pt-20">
+      <ThemeToggle />
+      <Navbar />
+      
+      {/* SECTION 1: HERO */}
+      <section className="relative flex min-h-[90vh] flex-col">
+        <div className="absolute inset-0 bg-noise opacity-[0.03] mix-blend-overlay pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-[50vw] h-[50vh] bg-amber-400/10 dark:bg-amber-400/5 blur-[120px] rounded-full pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vh] bg-cyan-400/10 dark:bg-cyan-400/5 blur-[120px] rounded-full pointer-events-none"></div>
+        
+        {/* Main Hero Content */}
+        <div className="flex-1 flex items-center justify-center relative z-10 px-6 py-12 lg:px-10">
+          <div className="mx-auto w-full max-w-7xl grid gap-12 lg:grid-cols-[1.2fr_0.8fr] items-center">
+            
+            {/* Left Content */}
+            <div className="space-y-8">
+              <div className="inline-flex h-16 items-center justify-start rounded-2xl bg-white px-4 shadow-sm border border-slate-200 dark:border-white/10 dark:bg-white backdrop-blur-md">
+                <Image
+                  src="/images/LOGO-INTERAKSI.png"
+                  alt="Logo INTERAKSI"
+                  width={180}
+                  height={56}
+                  className="h-8 w-auto object-contain"
+                  priority
+                />
+              </div>
+              
+              <div className="space-y-4">
+                <h1 className="font-display text-5xl font-bold tracking-tight leading-tight md:text-6xl lg:text-7xl text-navy-950 dark:text-white">
+                  Suara Mahasiswa,<br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-200">Didengar Redaksi.</span>
+                </h1>
+                <p className="max-w-xl text-lg text-slate-600 dark:text-slate-300">
+                  Platform pelaporan independen yang dikelola oleh Lembaga Pers ITERA untuk mengubah keluhan menjadi data, dan data menjadi aksi redaksi.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <a
+                  href="#kategori"
+                  className="rounded-full bg-navy-950 dark:bg-white px-8 py-3.5 text-base font-semibold text-white dark:text-navy-950 transition-all hover:scale-105 hover:shadow-lg hover:shadow-navy-900/20 dark:hover:shadow-white/20"
+                >
+                  Kirim Laporan
+                </a>
+                <Link
+                  href="/dashboard"
+                  className="rounded-full border border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-white/5 backdrop-blur-sm px-8 py-3.5 text-base font-semibold text-slate-700 dark:text-slate-200 transition-all hover:bg-slate-100 dark:hover:bg-white/10"
+                >
+                  Lihat Dashboard Publik
+                </Link>
+              </div>
+              
+              <div>
+                <Link href="/lacak" className="inline-flex items-center text-sm font-medium text-amber-600 dark:text-amber-400 hover:opacity-80 transition-opacity">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 mr-2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  Cek Status Laporan &rarr;
+                </Link>
+              </div>
+            </div>
+
+            {/* Right Content - Floating Card */}
+            <div className="relative justify-self-center lg:justify-self-end w-full max-w-sm">
+              <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-r from-amber-400 to-cyan-400 opacity-20 blur-xl"></div>
+              <div className="relative rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 p-8 backdrop-blur-md shadow-xl dark:shadow-2xl">
+                <div className="mb-6 flex items-center gap-3">
+                  <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-sm font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">Live Metrics</span>
                 </div>
-                <div>
-                  <p className="section-title">INTERAKSI</p>
-                  <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-5xl">
-                    Newsroom Aspirasi Mahasiswa
-                  </h1>
-                  <p className="mt-2 text-sm font-semibold text-amber-700 md:text-base">Inovasi, Terintegrasi, dan Aksi</p>
+                
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Total Laporan Masuk</p>
+                    <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{landingData.totalLaporan.toLocaleString('id-ID')}</p>
+                  </div>
+                  <div className="h-px w-full bg-slate-200 dark:bg-slate-800"></div>
+                  <div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Laporan Telah Terbit</p>
+                    <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{landingData.totalTerbit.toLocaleString('id-ID')}</p>
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="max-w-xl rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm leading-6 text-slate-600 md:text-right">
-              Platform pelaporan dan media kampus yang dikelola oleh Lembaga Pers ITERA untuk mengubah keluhan menjadi data, dan data menjadi aksi redaksi.
-            </div>
           </div>
+        </div>
 
-          <div className="headline-ticker mt-5 rounded-2xl border border-slate-200/70 bg-white/75 py-2">
-            <div className="headline-track">
-              {[...tickerItems, ...tickerItems].map((item, index) => (
-                <span key={`${item}-${index}`} className="headline-pill">
-                  <span className="headline-dot" />
+        {/* Bottom Ticker Strip */}
+        <div className="w-full bg-[#d97706] py-3 z-10 border-t border-amber-600 mt-auto">
+          <div className="headline-ticker">
+            <div className="headline-track" style={{ animationDuration: '40s' }}>
+              {[...tickerItems, ...tickerItems, ...tickerItems].map((item, index) => (
+                <span key={`${item}-${index}`} className="inline-flex items-center gap-3 px-6 text-sm font-bold text-white uppercase tracking-widest">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/50"></span>
                   {item}
                 </span>
               ))}
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link
-              href="/dashboard"
-              className="rounded-full bg-navy-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-800"
-            >
-              Command Center Publik
-            </Link>
-            
-            <Link
-              href="/admin"
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-950"
-            >
-              Dashboard Admin
+      {/* SECTION 2: KATEGORI LAPORAN */}
+      <section id="kategori" className="py-20 lg:py-28 px-6 lg:px-10 relative">
+        <div className="absolute inset-0 bg-white/50 dark:bg-transparent pointer-events-none"></div>
+        <div className="mx-auto max-w-7xl relative z-10">
+          <div className="text-center mb-16">
+            <p className="text-sm font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">Pilih Kategori</p>
+            <h2 className="mt-3 font-display text-3xl font-bold text-navy-950 dark:text-white md:text-4xl">
+              Laporan apa yang ingin kamu sampaikan?
+            </h2>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((cat, index) => (
+              <Link
+                key={cat.slug}
+                href={`/report/${cat.slug}`}
+                className={`group animate-fade-in-up flex flex-col justify-between rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(245,158,11,0.25)] hover:border-amber-400 border-l-4 ${cat.accent} opacity-0`}
+                style={{ animationDelay: `${index * 150}ms` }}
+              >
+                <div>
+                  <div className="flex justify-between items-start mb-6">
+                    <span className="text-slate-400 dark:text-slate-400 group-hover:text-navy-950 dark:group-hover:text-navy-950 transition-colors duration-300">{cat.icon}</span>
+                    <span className="font-mono text-xs font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-100 px-2 py-1 rounded">0{index + 1}</span>
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-navy-950 dark:text-navy-950 mb-3">{cat.title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-600 mb-8">{cat.description}</p>
+                </div>
+                <div className="flex items-center text-sm font-bold text-slate-500 dark:text-slate-500 transition-colors group-hover:text-amber-600 dark:group-hover:text-amber-600">
+                  Lapor Sekarang <span className="ml-2 transition-transform group-hover:translate-x-1">&rarr;</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 3: LAPORAN TERKINI (RECENT REPORTS) */}
+      <section className="py-24 px-6 lg:px-10 bg-slate-100 dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+            <div>
+              <p className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-500 uppercase mb-3">Wujud Nyata Aksi</p>
+              <h2 className="font-display text-3xl font-bold text-navy-950 dark:text-white md:text-4xl">
+                Laporan Terkini
+              </h2>
+            </div>
+            <Link href="/dashboard" className="inline-flex items-center text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+              Lihat Semua Laporan &rarr;
             </Link>
           </div>
-        </header>
 
-        <section className="mt-10 grid flex-1 items-center gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-8">
-            <div className="glass-panel reveal-fade rounded-[1.75rem] p-6 shadow-card">
-              <p className="section-title">Kotak Suara Mahasiswa</p>
-              <h2 className="mt-2 max-w-3xl text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">
-                Satu laporan yang jelas bisa menggerakkan tindak lanjut redaksi.
-              </h2>
-              <p className="mt-3 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-                Pilih kategori, isi formulir yang relevan, lalu kirim. Setiap laporan akan masuk ke workflow verifikasi redaksi sebelum dipublikasikan.
-              </p>               
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              {categories.map((category, index) => (
-                <Link
-                  key={category.slug}
-                  href={`/report/${category.slug}`}
-                  className="group reveal-fade rounded-[1.75rem] border border-white/70 bg-white/90 p-6 shadow-card transition duration-300 hover:-translate-y-1 hover:border-amber-200 hover:shadow-soft"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-3">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-navy-950 text-sm font-bold text-white">
-                        0{index + 1}
-                      </span>
-                      <h3 className="text-xl font-semibold text-navy-950">{category.title}</h3>
-                    </div>
-                    <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 transition group-hover:bg-amber-100">
-                      Lapor
+          {landingData.recentReports.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-3">
+              {landingData.recentReports.map((report: any) => (
+                <div key={report.id} className="rounded-2xl bg-white dark:bg-white p-6 shadow-sm border border-slate-200 dark:border-white transition-all hover:-translate-y-1 hover:shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                      Telah Terbit
+                    </span>
+                    <span className="text-xs font-medium text-slate-400">
+                      {new Date(report.created_at).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-600">{category.description}</p>
-                  <p className="mt-5 text-sm font-semibold text-navy-800">Buka formulir -&gt;</p>
-                </Link>
+                  <h4 className="font-display font-bold text-lg text-navy-950 mb-2">{getReportCategoryTitle(report.category)}</h4>
+                  <p className="text-sm text-slate-600 line-clamp-3 mb-6">{report.description}</p>
+                  
+                  {report.additional_data?.report_code && (
+                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-mono font-bold text-slate-400">TKT: {report.additional_data.report_code}</span>
+                      <Link href={`/lacak?kode=${report.additional_data.report_code}`} className="text-xs font-bold text-amber-600 hover:text-amber-700">Lacak &rarr;</Link>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white/50 dark:bg-white/5 border border-dashed border-slate-300 dark:border-slate-700 p-12 text-center">
+              <p className="text-slate-500 dark:text-slate-400">Belum ada laporan publik terkini.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* SECTION 4: HOW IT WORKS */}
+      <section className="py-24 px-6 lg:px-10 relative overflow-hidden bg-white dark:bg-slate-900/30">
+        <div className="absolute inset-0 bg-noise opacity-[0.02] dark:opacity-5 pointer-events-none mix-blend-overlay"></div>
+        <div className="mx-auto max-w-7xl relative z-10 py-8">
+          <div className="text-center mb-16">
+            <h2 className="font-display text-3xl font-bold text-navy-950 dark:text-white md:text-4xl">Gimana cara kerjanya?</h2>
+          </div>
+
+          <div className="relative max-w-4xl mx-auto">
+            {/* Desktop connecting line */}
+            <div className="hidden md:block absolute top-10 left-0 w-full h-0.5 bg-transparent border-t-2 border-dashed border-slate-300 dark:border-slate-700"></div>
+            
+            <div className="grid gap-12 md:grid-cols-3 relative">
+              {[
+                { 
+                  title: 'Pilih Kategori', 
+                  desc: 'Tentukan jenis isu yang sesuai dengan laporanmu.',
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                    </svg>
+                  )
+                },
+                { 
+                  title: 'Isi Formulir', 
+                  desc: 'Ceritakan detailnya secara anonim atau terbuka.',
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                  )
+                },
+                { 
+                  title: 'Pantau Status', 
+                  desc: 'Gunakan kode tiket untuk melacak progres redaksi.',
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                  )
+                }
+              ].map((step, idx) => (
+                <div key={idx} className="relative flex flex-col items-center text-center">
+                  <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 mb-6 text-slate-600 dark:text-slate-300">
+                    {step.icon}
+                    <div className="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white font-bold border-2 border-white dark:border-slate-900 shadow-sm">
+                      {idx + 1}
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-navy-950 dark:text-white mb-2">{step.title}</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{step.desc}</p>
+                </div>
               ))}
             </div>
           </div>
-          
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-12 space-y-6">
-          <div className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">Profil INTERAKSI</p>
-            <h2 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">
-              Identitas INTERAKSI
-            </h2>
-            <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600 md:text-base">
-              INTERAKSI adalah ruang temu aspirasi mahasiswa yang menempatkan inovasi, integrasi, dan dampak nyata sebagai arah kerja redaksi.
-              Bukan sekadar papan pengumuman, tetapi jembatan ide, data, dan aksi untuk mengawal informasi kampus.
+      {/* SECTION 5: FAQ & IDENTITAS */}
+      <section className="py-24 px-6 lg:px-10 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-navy-950">
+        <div className="mx-auto max-w-7xl grid gap-16 lg:grid-cols-2">
+          
+          {/* IDENTITAS */}
+          <div className="space-y-12">
+            <div>
+              <blockquote className="font-display text-3xl font-bold italic leading-tight text-navy-950 dark:text-white md:text-5xl">
+                "Suara Inovasi, Titik Temu Aspirasi, <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-200 inline-block pr-1 pb-1">Wujud Nyata Aksi</span>"
+              </blockquote>
+            </div>
+            
+            <div className="space-y-8">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Makna Nama</p>
+                <h3 className="font-display text-2xl font-bold text-navy-950 dark:text-white">INTERAKSI</h3>
+              </div>
+              
+              <ul className="space-y-6">
+                <li className="flex items-start gap-4">
+                  <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
+                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  </span>
+                  <div>
+                    <strong className="text-navy-950 dark:text-white">IN (Inovasi):</strong>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Jurnalisme mahasiswa berbasis data, visual, dan teknologi.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
+                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  </span>
+                  <div>
+                    <strong className="text-navy-950 dark:text-white">TERA (ITERA):</strong>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Identitas sebagai bagian dari sivitas akademika Institut Teknologi Sumatera.</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-4">
+                  <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
+                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  </span>
+                  <div>
+                    <strong className="text-navy-950 dark:text-white">AKSI (Action):</strong>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Setiap konten diarahkan menghasilkan output nyata dan pengawalan kebijakan.</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div className="space-y-8 bg-slate-50 dark:bg-slate-900/50 p-8 md:p-10 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-2">Tanya Jawab</p>
+              <h3 className="font-display text-2xl font-bold text-navy-950 dark:text-white">Pertanyaan Umum</h3>
+            </div>
+            
+            <div className="space-y-4">
+              {[
+                { 
+                  q: "Apakah identitas saya benar-benar aman?", 
+                  a: "Tentu saja. Anda bisa memilih mode pelaporan 'Anonim'. Lembaga Pers ITERA memegang teguh asas perlindungan narasumber sesuai Kode Etik Jurnalistik."
+                },
+                { 
+                  q: "Berapa lama laporan saya akan diproses?", 
+                  a: "Tim redaksi akan melakukan verifikasi awal maksimal 2x24 jam kerja. Anda bisa terus memantau status terkini menggunakan Kode Tiket Anda."
+                },
+                { 
+                  q: "Apakah semua laporan akan diterbitkan menjadi berita?", 
+                  a: "Tidak selalu. Laporan akan diverifikasi dan diinvestigasi terlebih dahulu. Beberapa laporan yang valid namun bersifat internal akan diteruskan langsung ke pihak kampus sebagai audiensi/advokasi (Arsip Internal)."
+                },
+                { 
+                  q: "Bagaimana jika tiket saya hilang?", 
+                  a: "Jika Anda memilih untuk tidak menyertakan email, kode tiket tidak dapat dipulihkan demi menjaga anonimitas absolut. Pastikan menyalin kode tiket sesaat setelah submit."
+                }
+              ].map((faq, idx) => (
+                <details key={idx} className="group border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-2xl overflow-hidden cursor-pointer open:ring-2 open:ring-amber-500/20 transition-all">
+                  <summary className="flex items-center justify-between font-bold text-navy-950 dark:text-white p-5 select-none hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <span>{faq.q}</span>
+                    <span className="transition group-open:rotate-180">
+                      <svg fill="none" height="24" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                    </span>
+                  </summary>
+                  <div className="px-5 pb-5 text-sm text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-700 pt-3">
+                    {faq.a}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Identitas Warna */}
+        <div className="mt-24 border-t border-slate-200 dark:border-slate-800 pt-16 mx-auto max-w-7xl">
+          <div className="text-center mb-12">
+            <h3 className="font-display text-2xl font-bold text-navy-950 dark:text-white">Filosofi Warna</h3>
+            <p className="mt-2 text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Setiap palet warna INTERAKSI dirancang untuk merepresentasikan nilai-nilai inti dari Lembaga Pers ITERA.</p>
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all hover:-translate-y-2 hover:shadow-xl hover:shadow-indigo-500/20 group">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 shadow-inner group-hover:scale-110 transition-transform"></div>
+                <h4 className="font-bold text-lg text-navy-950 dark:text-navy-950">Deep Purple & Indigo</h4>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Melambangkan <strong className="text-indigo-600">independensi, kreativitas, dan wibawa</strong> lembaga pers dalam menyajikan sudut pandang yang tajam dan tak memihak.</p>
+            </div>
+            
+            <div className="rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all hover:-translate-y-2 hover:shadow-xl hover:shadow-amber-500/20 group">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 shadow-inner group-hover:scale-110 transition-transform"></div>
+                <h4 className="font-bold text-lg text-navy-950 dark:text-navy-950">Amber Orange</h4>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Merepresentasikan <strong className="text-amber-600">energi dan keberanian</strong> redaksi dalam merangkul aspirasi mahasiswa serta memperjuangkan kebenaran.</p>
+            </div>
+            
+            <div className="rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all hover:-translate-y-2 hover:shadow-xl hover:shadow-blue-500/20 group">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-800 to-navy-950 shadow-inner group-hover:scale-110 transition-transform"></div>
+                <h4 className="font-bold text-lg text-navy-950 dark:text-navy-950">Navy Blue</h4>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Pondasi dari <strong className="text-blue-800">kepercayaan, integritas, dan profesionalitas</strong> jurnalistik yang selalu dijunjung tinggi dalam setiap publikasi.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 6: FOOTER */}
+      <footer className="bg-slate-100 dark:bg-slate-900 pt-16 pb-8 px-6 lg:px-10 border-t border-slate-200 dark:border-slate-800">
+        <div className="mx-auto max-w-7xl grid gap-10 md:grid-cols-3 mb-12">
+          {/* Col 1 */}
+          <div>
+            <div className="inline-flex rounded-xl bg-white px-4 py-2 mb-4 shadow-sm border border-slate-200 dark:border-slate-800">
+              <Image
+                src="/images/LOGO-INTERAKSI.png"
+                alt="Logo INTERAKSI"
+                width={140}
+                height={40}
+                className="h-6 w-auto object-contain"
+              />
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Platform pelaporan isu kampus yang dikelola independen oleh Lembaga Pers ITERA.
             </p>
           </div>
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <article className="rounded-[1.75rem] border border-slate-200 bg-white/85 p-6 shadow-card">
-              <h3 className="text-xl font-bold text-navy-950">Filosofi</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-700">
-                INTERAKSI dimaknai sebagai hubungan timbal balik yang aktif: ada suara, ada respons; ada isu, ada solusi. Platform ini dibangun
-                agar aspirasi mahasiswa tidak berhenti di keluhan, tapi berlanjut menjadi tindak lanjut.
-              </p>
-            </article>
-
-            <article className="rounded-[1.75rem] border border-slate-200 bg-white/85 p-6 shadow-card">
-              <h3 className="text-xl font-bold text-navy-950">Makna Nama</h3>
-              <div className="mt-3 space-y-3 text-sm leading-7 text-slate-700">
-                <p>
-                  <span className="font-semibold text-navy-900">IN (Inovasi):</span> jurnalisme mahasiswa berbasis data, visual, dan pemanfaatan
-                  teknologi untuk menyampaikan kebenaran.
-                </p>
-                <p>
-                  <span className="font-semibold text-navy-900">TERA (ITERA):</span> menegaskan identitas sebagai bagian dari Institut Teknologi
-                  Sumatera dan seluruh sivitas akademika.
-                </p>
-                <p>
-                  <span className="font-semibold text-navy-900">AKSI (Action):</span> setiap konten diarahkan menghasilkan output nyata: edukasi,
-                  gerakan, dan pengawalan kebijakan kampus.
-                </p>
-              </div>
-            </article>
-
-            <article className="rounded-[1.75rem] border border-slate-200 bg-white/85 p-6 shadow-card">
-              <h3 className="text-xl font-bold text-navy-950">Identitas Warna</h3>
-              <div className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
-                <p>
-                  <span className="font-semibold text-[#3B2D8F]">Deep Purple & Indigo:</span> independensi, kreativitas, dan wibawa lembaga pers.
-                </p>
-                <p>
-                  <span className="font-semibold text-amber-600">Amber Orange:</span> energi dan keberanian dalam merangkul aspirasi mahasiswa.
-                </p>
-                <p>
-                  <span className="font-semibold text-navy-900">Navy Blue (Dark):</span> kepercayaan, integritas, dan profesionalitas jurnalistik.
-                </p>
-              </div>
-            </article>
-
-            <article className="rounded-[1.75rem] border border-slate-200 bg-white/85 p-6 shadow-card">
-              <h3 className="text-xl font-bold text-navy-950">Elemen Konektivitas</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-700">
-                Simbol garis yang saling terhubung merepresentasikan sinergi: INTERAKSI berperan sebagai jembatan berbagai sudut pandang untuk
-                mencapai informasi yang utuh dan dapat dipercaya.
-              </p>
-              <blockquote className="mt-6 rounded-2xl border border-navy-100 bg-navy-50 px-4 py-3 text-sm font-semibold italic text-navy-900">
-                "Suara Inovasi, Titik Temu Aspirasi, Wujud Nyata Aksi"
-              </blockquote>
-            </article>
+          
+          {/* Col 2 */}
+          <div className="md:ml-auto">
+            <h4 className="text-sm font-bold text-navy-950 dark:text-white mb-4">Navigasi</h4>
+            <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
+              <li><Link href="/" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Beranda</Link></li>
+              <li><Link href="/dashboard" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Command Center</Link></li>
+              <li><Link href="/lacak" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Lacak Laporan</Link></li>
+              <li><Link href="/admin" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Admin Dashboard</Link></li>
+              <li><Link href="/bantuan" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Bantuan</Link></li>
+            </ul>
           </div>
-        </section>
-      </section>
+          
+          {/* Col 3 */}
+          <div className="md:ml-auto">
+            <h4 className="text-sm font-bold text-navy-950 dark:text-white mb-4">Lembaga Pers ITERA</h4>
+            <div className="inline-flex rounded-xl bg-white px-2 py-2 mb-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <Image
+                src="/images/lempers-flag.png"
+                alt="Bendera Lembaga Pers ITERA"
+                width={48}
+                height={48}
+                className="h-10 w-auto object-contain"
+              />
+            </div>
+            <div className="flex gap-4">
+              <a href="#" className="text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors" aria-label="Instagram">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+              </a>
+              <a href="#" className="text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors" aria-label="Twitter">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mx-auto max-w-7xl pt-8 border-t border-slate-200 dark:border-slate-800 text-center md:text-left flex flex-col md:flex-row justify-between items-center text-xs text-slate-500 gap-4">
+          <p>&copy; {new Date().getFullYear()} INTERAKSI &middot; Lembaga Pers ITERA</p>
+          <p>Dibuat untuk kebaikan kampus.</p>
+        </div>
+      </footer>
     </main>
   );
 }
