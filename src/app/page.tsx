@@ -156,7 +156,7 @@ export default async function HomePage() {
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-200">Didengar Redaksi.</span>
                 </h1>
                 <p className="max-w-xl text-lg text-slate-600 dark:text-slate-300">
-                  Platform pelaporan independen yang dikelola oleh Lembaga Pers ITERA untuk mengubah keluhan menjadi data, dan data menjadi aksi redaksi.
+                  Platform pelaporan independen yang dikelola oleh UKM Lembaga Pers ITERA untuk mengubah keluhan menjadi data, dan data menjadi aksi redaksi.
                 </p>
               </div>
 
@@ -427,7 +427,7 @@ export default async function HomePage() {
               {[
                 { 
                   q: "Apakah identitas saya benar-benar aman?", 
-                  a: "Tentu saja. Anda bisa memilih mode pelaporan 'Anonim'. Lembaga Pers ITERA memegang teguh asas perlindungan narasumber sesuai Kode Etik Jurnalistik."
+                  a: "Tentu saja. Anda bisa memilih mode pelaporan 'Anonim'. UKM Lembaga Pers ITERA memegang teguh asas perlindungan narasumber sesuai Kode Etik Jurnalistik."
                 },
                 { 
                   q: "Berapa lama laporan saya akan diproses?", 
@@ -462,7 +462,7 @@ export default async function HomePage() {
         <div className="mt-24 border-t border-slate-200 dark:border-slate-800 pt-16 mx-auto max-w-7xl">
           <div className="text-center mb-12">
             <h3 className="font-display text-2xl font-bold text-navy-950 dark:text-white">Filosofi Warna</h3>
-            <p className="mt-2 text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Setiap palet warna INTERAKSI dirancang untuk merepresentasikan nilai-nilai inti dari Lembaga Pers ITERA.</p>
+            <p className="mt-2 text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Setiap palet warna INTERAKSI dirancang untuk merepresentasikan nilai-nilai inti dari UKM Lembaga Pers ITERA.</p>
           </div>
           
           <div className="grid gap-6 md:grid-cols-3">
@@ -471,7 +471,7 @@ export default async function HomePage() {
                 <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 shadow-inner group-hover:scale-110 transition-transform"></div>
                 <h4 className="font-bold text-lg text-navy-950 dark:text-navy-950">Deep Purple & Indigo</h4>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Melambangkan <strong className="text-indigo-600">independensi, kreativitas, dan wibawa</strong> lembaga pers dalam menyajikan sudut pandang yang tajam dan tak memihak.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-600 leading-relaxed">Melambangkan <strong className="text-indigo-600">independensi, kreativitas, dan wibawa</strong> UKM Lembaga Pers ITERA dalam menyajikan sudut pandang yang tajam dan tak memihak.</p>
             </div>
             
             <div className="rounded-2xl bg-white dark:bg-white p-6 shadow-md border border-slate-200 dark:border-white transition-all hover:-translate-y-2 hover:shadow-xl hover:shadow-amber-500/20 group">
@@ -508,7 +508,7 @@ export default async function HomePage() {
               />
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Platform pelaporan isu kampus yang dikelola independen oleh Lembaga Pers ITERA.
+              Platform pelaporan isu kampus yang dikelola independen oleh UKM Lembaga Pers ITERA.
             </p>
           </div>
           
@@ -526,11 +526,11 @@ export default async function HomePage() {
           
           {/* Col 3 */}
           <div className="md:ml-auto">
-            <h4 className="text-sm font-bold text-navy-950 dark:text-white mb-4">Lembaga Pers ITERA</h4>
+            <h4 className="text-sm font-bold text-navy-950 dark:text-white mb-4">UKM Lembaga Pers ITERA</h4>
             <div className="inline-flex rounded-xl bg-white px-2 py-2 mb-4 border border-slate-200 dark:border-slate-800 shadow-sm">
               <Image
                 src="/images/lempers-flag.png"
-                alt="Bendera Lembaga Pers ITERA"
+                alt="Bendera UKM Lembaga Pers ITERA"
                 width={48}
                 height={48}
                 className="h-10 w-auto object-contain"
@@ -548,7 +548,7 @@ export default async function HomePage() {
         </div>
         
         <div className="mx-auto max-w-7xl pt-8 border-t border-slate-200 dark:border-slate-800 text-center md:text-left flex flex-col md:flex-row justify-between items-center text-xs text-slate-500 gap-4">
-          <p>&copy; {new Date().getFullYear()} INTERAKSI &middot; Lembaga Pers ITERA</p>
+          <p>&copy; {new Date().getFullYear()} INTERAKSI &middot; UKM Lembaga Pers ITERA</p>
           <p>Dibuat untuk kebaikan kampus.</p>
         </div>
       </footer>
