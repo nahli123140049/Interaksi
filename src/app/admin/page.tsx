@@ -150,6 +150,7 @@ export default function AdminPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [reportsPerPage] = useState(10);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [newsTitle, setNewsTitle] = useState('');
@@ -928,39 +929,54 @@ export default function AdminPage() {
       <ThemeToggle />
       <AdminSidebar
         currentTab={currentTab}
-        onTabChange={setCurrentTab}
+        onTabChange={(tab) => {
+          setCurrentTab(tab);
+          setIsSidebarOpen(false);
+        }}
         adminEmail={adminEmail}
         adminRole={roleLabel}
         onLogout={handleLogout}
         availableTabs={availableTabs}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="pl-72 min-h-screen">
+      <main className="lg:pl-72 min-h-screen transition-all duration-500">
         {/* Modern Top Header */}
-        <header className="sticky top-0 z-40 h-20 bg-white/80 dark:bg-navy-950/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 px-10 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-display font-black text-navy-950 dark:text-white uppercase tracking-tight">
-              {availableTabs.find(t => t.id === currentTab)?.label.split(' ').slice(1).join(' ') || 'Control Panel'}
-            </h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Management Suite • {roleLabel}</p>
+        <header className="sticky top-0 z-40 h-20 bg-white/80 dark:bg-navy-950/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 px-6 lg:px-10 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-amber-500 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+            <div>
+              <h2 className="text-lg lg:text-xl font-display font-black text-navy-950 dark:text-white uppercase tracking-tight truncate max-w-[150px] sm:max-w-none">
+                {availableTabs.find(t => t.id === currentTab)?.label.split(' ').slice(1).join(' ') || 'Control Panel'}
+              </h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:block">Management Suite • {roleLabel}</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-xs font-black text-slate-400 hover:text-amber-500 uppercase tracking-widest transition-colors">
+          <div className="flex items-center gap-3 lg:gap-6">
+            <Link href="/" className="text-xs font-black text-slate-400 hover:text-amber-500 uppercase tracking-widest transition-colors hidden sm:block">
               Public Home ↗
             </Link>
-            <div className="h-8 w-px bg-slate-200 dark:bg-white/10"></div>
-            <div className="flex items-center gap-3">
+            <div className="h-8 w-px bg-slate-200 dark:bg-white/10 hidden sm:block"></div>
+            <div className="flex items-center gap-2 lg:gap-3">
               <div className="relative">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
                 <span className="absolute inset-0 h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">System Live</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 hidden lg:block">System Live</span>
             </div>
           </div>
         </header>
 
-        <div className="p-10 space-y-10 animate-fade-in">
+        <div className="p-4 sm:p-10 space-y-6 lg:space-y-10 animate-fade-in">
           {currentTab === 'reports' && (
             <div className="space-y-10">
               <AdminStats 
@@ -987,7 +1003,7 @@ export default function AdminPage() {
                         value={reportSearch}
                         onChange={(e) => setReportSearch(e.target.value)}
                         placeholder="Cari kode tiket, prodi, atau isi..."
-                        className="min-w-[300px] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
+                        className="w-full sm:min-w-[300px] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
                       />
                       <svg className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1018,8 +1034,9 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="mt-10 overflow-hidden rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-900/40 shadow-2xl">
-                  <table className="w-full text-left text-sm">
+                <div className="mt-10 overflow-x-auto rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-900/40 shadow-2xl custom-scrollbar">
+                  <div className="min-w-[800px]">
+                    <table className="w-full text-left text-sm">
                     <thead className="bg-slate-100 dark:bg-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-black">
                       <tr>
                         <th className="px-8 py-5">Tiket & Waktu</th>
@@ -1077,6 +1094,7 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
 
                 {/* Pagination */}
                 {paginationState.totalPages > 1 && (
@@ -1122,7 +1140,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="mt-10 grid gap-10 lg:grid-cols-[1.2fr_1.8fr]">
+                  <div className="mt-10 grid gap-10 grid-cols-1 lg:grid-cols-[1.2fr_1.8fr]">
                     {/* Immersive Form */}
                     <div className="rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/50 p-8 shadow-xl">
                       <h3 className="text-lg font-bold text-navy-950 dark:text-white mb-6 flex items-center gap-2">
