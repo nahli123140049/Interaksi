@@ -10,24 +10,37 @@ import { StatusBadge } from '@/components/StatusBadge';
 // === COMPONENTS FETCHING SUPABASE DATA (WITH SUSPENSE) ===
 
 async function LiveMetrics() {
-  const fallback = { totalLaporan: 1245, totalTerbit: 890 };
+  const fallback = { totalLaporan: 0, totalTerbit: 0 };
   let data = fallback;
 
   if (isSupabaseConfigured) {
     try {
-      const { count: totalLaporan } = await supabase
-        .from('reports')
-        .select('*', { count: 'exact', head: true });
+      const { data: analytics, error } = await supabase
+        .from('reports_analytics')
+        .select('*')
+        .single();
 
-      const { count: totalTerbit } = await supabase
-        .from('reports')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['Telah Terbit', 'Arsip Internal']);
+      if (!error && analytics) {
+        data = {
+          totalLaporan: analytics.total_reports,
+          totalTerbit: analytics.published_count,
+        };
+      } else {
+        // Fallback to manual count if view is missing
+        const { count: totalLaporan } = await supabase
+          .from('reports')
+          .select('*', { count: 'exact', head: true });
 
-      data = {
-        totalLaporan: totalLaporan !== null ? totalLaporan : fallback.totalLaporan,
-        totalTerbit: totalTerbit !== null ? totalTerbit : fallback.totalTerbit,
-      };
+        const { count: totalTerbit } = await supabase
+          .from('reports')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['Telah Terbit', 'Arsip Internal']);
+
+        data = {
+          totalLaporan: totalLaporan ?? 0,
+          totalTerbit: totalTerbit ?? 0,
+        };
+      }
     } catch (error) {
       console.error('Error fetching live metrics:', error);
     }
@@ -35,14 +48,24 @@ async function LiveMetrics() {
 
   return (
     <>
-      <div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Total Laporan Masuk</p>
-        <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{data.totalLaporan.toLocaleString('id-ID')}</p>
+      <div className="group transition-all">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-1">Total Laporan Masuk</p>
+        <div className="flex items-baseline gap-2">
+          <p className="font-display text-5xl font-black text-navy-950 dark:text-white transition-all group-hover:text-amber-500">
+            {data.totalLaporan.toLocaleString('id-ID')}
+          </p>
+          <span className="text-xs font-bold text-slate-400 uppercase">Aspirasi</span>
+        </div>
       </div>
-      <div className="h-px w-full bg-slate-200 dark:bg-slate-800"></div>
-      <div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Laporan Telah Terbit</p>
-        <p className="mt-1 font-display text-4xl font-bold text-navy-950 dark:text-white">{data.totalTerbit.toLocaleString('id-ID')}</p>
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
+      <div className="group transition-all">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-1">Laporan Telah Terbit</p>
+        <div className="flex items-baseline gap-2">
+          <p className="font-display text-5xl font-black text-navy-950 dark:text-white transition-all group-hover:text-emerald-500">
+            {data.totalTerbit.toLocaleString('id-ID')}
+          </p>
+          <span className="text-xs font-bold text-slate-400 uppercase">Aksi Nyata</span>
+        </div>
       </div>
     </>
   );
@@ -519,7 +542,7 @@ export default function HomePage() {
                 },
                 { 
                   q: "Bagaimana jika tiket saya hilang?", 
-                  a: "Jika Anda memilih untuk tidak menyertakan email, kode tiket tidak dapat dipulihkan demi menjaga anonimitas absolut. Pastikan menyalin kode tiket sesaat setelah submit."
+                  a: "Sistem kami akan menampilkan pop-up notifikasi khusus setelah Anda mengirim laporan. Anda wajib menyalin kode tiket tersebut sebelum menutup jendela informasi demi menjaga anonimitas absolut, karena kode tidak dapat dipulihkan jika hilang."
                 }
               ].map((faq, idx) => (
                 <details key={idx} className="group border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-2xl overflow-hidden cursor-pointer open:ring-2 open:ring-amber-500/20 transition-all">
@@ -619,11 +642,14 @@ export default function HomePage() {
               />
             </div>
             <div className="flex gap-4">
-              <a href="#" className="text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors" aria-label="Instagram">
+              <a href="https://www.instagram.com/lembagapers_itera?igsh=MW45MnZhNWN2M2ptdQ==" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-500 transition-all hover:scale-110" aria-label="Instagram">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
               </a>
-              <a href="#" className="text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors" aria-label="Twitter">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>
+              <a href="https://medium.com/@lembagapersitera" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-navy-950 dark:hover:text-white transition-all hover:scale-110" aria-label="Medium">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13.54 12a6.8 6.8 0 01-6.77 6.82A6.82 6.82 0 010 12a6.82 6.82 0 016.77-6.82A6.8 6.8 0 0113.54 12zM20.96 12c0 3.54-1.51 6.41-3.38 6.41s-3.38-2.87-3.38-6.41 1.51-6.41 3.38-6.41 3.38 2.87 3.38 6.41zM24 12c0 3.17-.39 5.75-.86 5.75s-.86-2.58-.86-5.75.39-5.75.86-5.75S24 8.83 24 12z"/></svg>
+              </a>
+              <a href="https://www.tiktok.com/@lembagapers_itera?_r=1&_t=ZS-95p2oXqIgYK" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-navy-950 dark:hover:text-white transition-all hover:scale-110" aria-label="TikTok">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.9-.32-1.98-.23-2.81.36-.54.38-.89.98-1.03 1.64-.17.81.12 1.64.71 2.21.5.46 1.16.65 1.83.58.94-.08 1.76-.81 1.93-1.74.01-3.13-.01-6.26.01-9.39zm0 0"/></svg>
               </a>
             </div>
           </div>

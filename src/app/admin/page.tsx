@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import NextImage from 'next/image';
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 import {
   adminRoleDescriptions,
@@ -40,6 +41,9 @@ import { AnalyticsDashboard } from '@/components/AnalyticsDashboard';
 import { AuditLogViewer } from '@/components/AuditLogViewer';
 import { ModerationFlagsPanel } from '@/components/ModerationFlagsPanel';
 import { ImageUploadManager } from '@/components/ImageUploadManager';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminStats } from '@/components/admin/AdminStats';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type ReportItem = {
   id: string;
@@ -145,6 +149,7 @@ export default function AdminPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [reportsPerPage] = useState(10);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [newsTitle, setNewsTitle] = useState('');
@@ -833,579 +838,573 @@ export default function AdminPage() {
 
   if (!sessionReady) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-slate-900">
-        <div className="glass-panel rounded-[2rem] px-8 py-10 text-center shadow-soft">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-navy-700">INTERAKSI</p>
-          <h1 className="mt-3 text-2xl font-bold text-navy-950">Memeriksa sesi admin...</h1>
+      <div className="flex min-h-screen items-center justify-center bg-navy-950 px-6">
+        <div className="flex flex-col items-center gap-6">
+          <div className="h-16 w-16 animate-spin rounded-full border-4 border-amber-500/20 border-t-amber-500"></div>
+          <p className="text-sm font-black uppercase tracking-[0.3em] text-amber-500 animate-pulse">Initializing System...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
-  if (!isLoggedIn) {
+  if (!isLoggedIn || !isAuthorized) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 py-10 text-slate-900">
-        <section className="glass-panel w-full max-w-lg rounded-[2rem] p-8 shadow-soft">
-          <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">Admin Access</p>
-          <h1 className="mt-3 text-3xl font-bold text-navy-950">Login Admin INTERAKSI</h1>
-          <p className="mt-4 text-sm leading-7 text-slate-600">Masuk dengan Email/Password.</p>
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 dark:bg-navy-950 px-6 py-12 transition-colors duration-500">
+        <ThemeToggle />
+        {/* Background Accents */}
+        <div className="absolute top-0 right-0 w-[50vw] h-[50vh] bg-amber-500/10 dark:bg-amber-500/5 blur-[120px] rounded-full"></div>
+        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vh] bg-rose-600/10 dark:bg-rose-600/5 blur-[120px] rounded-full"></div>
+        
+        <div className="relative z-10 w-full max-w-md animate-fade-in-up text-center">
+          <div className="inline-flex rounded-2xl bg-white p-3 shadow-2xl mb-8 border border-slate-200 dark:border-white/20">
+            <NextImage src="/images/lempers-flag.png" alt="Logo" width={48} height={48} className="h-12 w-auto object-contain" />
+          </div>
+          <h1 className="font-display text-4xl font-black text-navy-950 dark:text-white tracking-tight">INTERAKSI <span className="text-amber-500 uppercase">Admin</span></h1>
+          <p className="mt-2 text-slate-500 dark:text-slate-400 text-sm font-black uppercase tracking-widest italic opacity-50">Authorized Personnel Only</p>
 
-          {!isSupabaseConfigured && (
-            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Supabase belum dikonfigurasi. Isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY.
-            </div>
-          )}
-
-          {authError && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{authError}</div>}
-
-          <form className="mt-6 space-y-4" onSubmit={handleEmailLogin}>
-            <input
-              type="email"
-              required
-              value={loginEmail}
-              onChange={(event) => setLoginEmail(event.target.value)}
-              placeholder="Email admin"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-            />
-            <input
-              type="password"
-              required
-              value={loginPassword}
-              onChange={(event) => setLoginPassword(event.target.value)}
-              placeholder="Password"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:border-navy-200 hover:text-navy-900 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {loading ? 'Memproses login...' : 'Login dengan Email'}
-            </button>
-          </form>
-
-          <Link href="/" className="mt-4 block text-center text-sm font-semibold text-navy-700 hover:text-navy-900">
-            Kembali ke beranda
-          </Link>
-        </section>
+          <div className="mt-10 rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-white/5 p-8 backdrop-blur-2xl shadow-2xl">
+            <form className="space-y-6" onSubmit={handleEmailLogin}>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Access Email</label>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-6 py-4 text-navy-950 dark:text-white outline-none transition focus:border-amber-500"
+                />
+              </div>
+              <div className="space-y-2 text-left">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Access Key</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-6 py-4 text-navy-950 dark:text-white outline-none transition focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-500 dark:text-slate-200 dark:hover:text-amber-400 transition-colors p-2"
+                  >
+                    {showPassword ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+              {authError && (
+                <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-500">
+                  {authError}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-2xl bg-amber-500 py-4 text-sm font-black text-navy-950 transition hover:bg-amber-400 active:scale-95 shadow-xl shadow-amber-500/20"
+              >
+                {loading ? 'AUTHORIZING...' : 'OPEN ACCESS'}
+              </button>
+            </form>
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="editorial-shell min-h-screen px-4 py-6 text-slate-900 md:px-6 lg:px-10 lg:py-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.34em] text-navy-700">INTERAKSI Admin</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-navy-950 md:text-4xl">Dashboard Laporan Mahasiswa</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Pantau laporan, atur status redaksi, kelola moderasi konten, dan analitik mendalam.</p>
-              <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full border border-cyan-100 bg-cyan-50 px-4 py-2 text-sm text-cyan-900">
-                <span className="font-semibold">Hak Akses:</span>
-                <span className="font-bold">{roleLabel}</span>
-                <span className="text-cyan-700/80">{roleDescription}</span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-navy-950 text-slate-900 dark:text-slate-100 transition-colors duration-500">
+      <ThemeToggle />
+      <AdminSidebar
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        adminEmail={adminEmail}
+        adminRole={roleLabel}
+        onLogout={handleLogout}
+        availableTabs={availableTabs}
+      />
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/"
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-              >
-                Beranda
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center justify-center rounded-full bg-navy-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-navy-800"
-              >
-                Logout
-              </button>
-            </div>
+      <main className="pl-72 min-h-screen">
+        {/* Modern Top Header */}
+        <header className="sticky top-0 z-40 h-20 bg-white/80 dark:bg-navy-950/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 px-10 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-display font-black text-navy-950 dark:text-white uppercase tracking-tight">
+              {availableTabs.find(t => t.id === currentTab)?.label.split(' ').slice(1).join(' ') || 'Control Panel'}
+            </h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Management Suite • {roleLabel}</p>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <AdminMetricCard label="Laporan Masuk" value={totalReportsCount} tone="navy" />
-            <AdminMetricCard label="Backlog Verifikasi" value={backlogCount} tone="amber" />
-            <AdminMetricCard label="Sudah Terbit" value={publishedCount} tone="emerald" />
-            <AdminMetricCard label="SLA Terlambat" value={slaOverdueCount} tone="rose" />
-            <AdminMetricCard label="Flag Aktif" value={flaggedReportsCount} tone="navy" />
+          <div className="flex items-center gap-6">
+            <Link href="/" className="text-xs font-black text-slate-400 hover:text-amber-500 uppercase tracking-widest transition-colors">
+              Public Home ↗
+            </Link>
+            <div className="h-8 w-px bg-slate-200 dark:bg-white/10"></div>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                <span className="absolute inset-0 h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">System Live</span>
+            </div>
           </div>
         </header>
 
-        <div className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-          <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-4">
-            {availableTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setCurrentTab(tab.id)}
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  currentTab === tab.id
-                    ? 'bg-navy-950 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:border-navy-200 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {currentTab === 'reports' && (
-          <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-            {authError && (
-              <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{authError}</div>
-            )}
-
-            {!hasStatusColumn && (
-              <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-                Kolom status belum tersedia di tabel reports. Dashboard tetap bisa melihat data, tapi update status perlu SQL migration.
-              </div>
-            )}
-
-            <div className="flex flex-col gap-4 border-b border-slate-200/70 pb-5 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Data Reports</p>
-                <h2 className="mt-1 text-2xl font-bold text-navy-950">Semua laporan masuk</h2>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  type="search"
-                  value={reportSearch}
-                  onChange={(event) => setReportSearch(event.target.value)}
-                  placeholder="Cari kode tiket, isi, nama, prodi..."
-                  className="min-w-[260px] rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-                />
-                <label className="text-sm font-semibold text-slate-600">Filter Kategori</label>
-                <select
-                  value={categoryFilter}
-                  title="Filter Kategori"
-                  onChange={(event) => {
-                    setCategoryFilter(event.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 outline-none focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-                >
-                  <option value="all">Semua</option>
-                  {Object.entries(categoryLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
-                  <button
-                    type="button"
-                    onClick={() => setSlaFilter('all')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                      slaFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    Semua SLA
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSlaFilter('on-track')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                      slaFilter === 'on-track' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    On Track
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSlaFilter('warning')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                      slaFilter === 'warning' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    Warning
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSlaFilter('overdue')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                      slaFilter === 'overdue' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    Overdue
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-500">
-                    <tr>
-                      <th className="px-5 py-4 font-semibold">Timestamp</th>
-                      <th className="px-5 py-4 font-semibold">Kode Tiket</th>
-                      <th className="px-5 py-4 font-semibold">Category</th>
-                      <th className="px-5 py-4 font-semibold">Reporter</th>
-                      <th className="px-5 py-4 font-semibold">Status</th>
-                      <th className="px-5 py-4 font-semibold">SLA</th>
-                      <th className="px-5 py-4 font-semibold">Status Privasi</th>
-                      <th className="px-5 py-4 font-semibold">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
-                    {paginatedReports.length === 0 ? (
-                      <tr>
-                        <td className="px-5 py-8 text-sm text-slate-500" colSpan={8}>
-                          Belum ada laporan untuk filter yang dipilih.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedReports.map((report) => (
-                        <tr key={report.id} className="align-top">
-                          <td className="px-5 py-4 text-slate-600">{formatDate(report.created_at)}</td>
-                          <td className="px-5 py-4 font-mono text-xs font-semibold text-navy-900">
-                            {parseReportCode(report.additional_data) || '-'}
-                          </td>
-                          <td className="px-5 py-4 font-medium text-navy-900">{categoryLabels[report.category] ?? report.category}</td>
-                          <td className="px-5 py-4 text-slate-600">
-                            <div className="font-medium text-slate-900">{report.reporter_name || 'Anonim'}</div>
-                            <div className="text-xs text-slate-500">{report.prodi}</div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <StatusBadge status={report.status} />
-                          </td>
-                          <td className="px-5 py-4">
-                            <SlaBadge createdAt={report.created_at} status={report.status} />
-                          </td>
-                          <td className="px-5 py-4 text-slate-600">{report.privacy}</td>
-                          <td className="px-5 py-4">
-                            <button
-                              type="button"
-                              onClick={() => openDetail(report)}
-                              className="rounded-full bg-navy-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-800"
-                            >
-                              Lihat Detail
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {paginationState.totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-between gap-4">
-                <div className="text-sm text-slate-600">
-                  Halaman {paginationState.currentPage} dari {paginationState.totalPages}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={!paginationState.hasPreviousPage}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    ← Sebelumnya
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((p) => Math.min(paginationState.totalPages, p + 1))}
-                    disabled={!paginationState.hasNextPage}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Berikutnya →
-                  </button>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {currentTab === 'berita' && (
-          <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-            <div className="border-b border-slate-200/70 pb-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Berita Terkini</p>
-              <h2 className="mt-1 text-2xl font-bold text-navy-950">Kelola berita dari hasil laporan</h2>
-              {editingNewsId && (
-                <p className="mt-2 text-sm text-navy-700">Sedang mengedit berita. Foto baru akan ditambahkan ke galeri yang sudah ada.</p>
-              )}
-            </div>
-
-            {!permissions.canPublishContent && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Role monitoring hanya dapat membaca berita yang sudah terbit.
-              </div>
-            )}
-
-            <form className="mt-6 space-y-4" onSubmit={handleCreateNews}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <input
-                  type="text"
-                  value={newsTitle}
-                  onChange={(event) => setNewsTitle(event.target.value)}
-                  disabled={!permissions.canPublishContent}
-                  placeholder="Judul berita"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-                />
-                <input
-                  type="text"
-                  value={newsSummary}
-                  onChange={(event) => setNewsSummary(event.target.value)}
-                  disabled={!permissions.canPublishContent}
-                  placeholder="Ringkasan berita (opsional)"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-                />
-              </div>
-
-              <textarea
-                value={newsContent}
-                onChange={(event) => setNewsContent(event.target.value)}
-                disabled={!permissions.canPublishContent}
-                rows={6}
-                placeholder="Isi berita lengkap"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
+        <div className="p-10 space-y-10 animate-fade-in">
+          {currentTab === 'reports' && (
+            <div className="space-y-10">
+              <AdminStats 
+                totalReports={totalReportsCount}
+                backlogCount={backlogCount}
+                publishedCount={publishedCount}
+                slaOverdueCount={slaOverdueCount}
               />
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Foto Berita (bisa lebih dari satu)</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  title="Upload Foto Berita"
-                  onChange={(event) => setNewsPhotos(Array.from(event.target.files ?? []))}
-                  disabled={!permissions.canPublishContent}
-                  className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-navy-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-navy-200"
-                />
-                {existingImageUrls.length > 0 && (
-                  <p className="text-xs text-slate-500">Foto tersimpan saat ini: {existingImageUrls.length}</p>
-                )}
-              </div>
+              <section className="relative overflow-hidden rounded-[3rem] border border-white/40 bg-white/30 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.03)] backdrop-blur-md lg:p-12 dark:border-slate-800/50 dark:bg-slate-950/20">
+                <div className="flex flex-col gap-8 border-b border-slate-200 dark:border-white/5 pb-10 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-0.5 w-8 bg-amber-500" />
+                      <p className="text-[10px] font-black tracking-[0.3em] text-amber-600 dark:text-amber-500 uppercase">Aspirasi Mahasiswa</p>
+                    </div>
+                    <h2 className="font-display text-3xl font-bold tracking-tight text-navy-950 dark:text-white md:text-4xl">Pusat Kendali <span className="text-amber-600">Laporan</span></h2>
+                  </div>
 
-              {newsError && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{newsError}</div>}
-              {newsMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{newsMessage}</div>}
-
-              {permissions.canPublishContent ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="submit"
-                    disabled={savingNews}
-                    className="inline-flex items-center justify-center rounded-full bg-navy-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {savingNews ? 'Menyimpan berita...' : editingNewsId ? 'Simpan Perubahan Berita' : 'Publikasikan Berita'}
-                  </button>
-                  {editingNewsId && (
-                    <button
-                      type="button"
-                      onClick={handleCancelEditNews}
-                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-                    >
-                      Batal Edit
-                    </button>
-                  )}
-                </div>
-              ) : null}
-            </form>
-
-            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {newsItems.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
-                  Belum ada berita terkini yang dipublikasikan.
-                </div>
-              ) : (
-                newsItems.map((news) => (
-                  <article key={news.id} className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-                    {news.image_urls?.[0] && (
-                      <img
-                        src={news.image_urls[0]}
-                        alt={news.title}
-                        className="mb-3 h-40 w-full rounded-xl object-cover"
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="relative">
+                      <input
+                        type="search"
+                        value={reportSearch}
+                        onChange={(e) => setReportSearch(e.target.value)}
+                        placeholder="Cari kode tiket, prodi, atau isi..."
+                        className="min-w-[300px] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
                       />
-                    )}
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{formatDate(news.created_at)}</p>
-                    <h3 className="mt-2 text-lg font-bold text-navy-950">{news.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">{news.summary || news.content}</p>
-                    {news.image_urls && news.image_urls.length > 1 && (
-                      <p className="mt-2 text-xs text-slate-500">+{news.image_urls.length - 1} foto tambahan</p>
-                    )}
-                    {(permissions.canEditNews || permissions.canDeleteNews) && (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {permissions.canEditNews && (
-                          <button
-                            type="button"
-                            onClick={() => handleEditNews(news)}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-navy-200 hover:text-navy-900"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {permissions.canDeleteNews && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteNews(news.id)}
-                            disabled={deletingNewsId === news.id}
-                            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
-                          >
-                            {deletingNewsId === news.id ? 'Menghapus...' : 'Hapus'}
-                          </button>
-                        )}
+                      <svg className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm font-bold outline-none focus:border-amber-500"
+                    >
+                      <option value="all">Semua Kategori</option>
+                      {Object.entries(categoryLabels).map(([key, value]) => (
+                        <option key={key} value={key}>{value}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={slaFilter}
+                      onChange={(e) => setSlaFilter(e.target.value as any)}
+                      className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm font-bold outline-none focus:border-amber-500"
+                    >
+                      <option value="all">Semua SLA</option>
+                      <option value="on-track">On Track</option>
+                      <option value="warning">Warning</option>
+                      <option value="overdue">Overdue</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-10 overflow-hidden rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-900/40 shadow-2xl">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-100 dark:bg-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-black">
+                      <tr>
+                        <th className="px-8 py-5">Tiket & Waktu</th>
+                        <th className="px-8 py-5">Kategori & Isu</th>
+                        <th className="px-8 py-5">Status & SLA</th>
+                        <th className="px-8 py-5 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                      {paginatedReports.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-8 py-20 text-center text-slate-400 font-medium italic">Data tidak ditemukan.</td>
+                        </tr>
+                      ) : (
+                        paginatedReports.map((report) => {
+                          const sla = getSlaMeta(report.created_at, report.status);
+                          return (
+                            <tr key={report.id} className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                              <td className="px-8 py-6">
+                                <div className="flex flex-col gap-1">
+                                  <span className="font-mono text-xs font-black text-amber-600 dark:text-amber-400 tracking-tighter">#{parseReportCode(report.additional_data) || 'NO-ID'}</span>
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatDate(report.created_at)}</span>
+                                </div>
+                              </td>
+                              <td className="px-8 py-6">
+                                <div className="flex flex-col gap-1 max-w-md">
+                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{categoryLabels[report.category] ?? report.category}</span>
+                                  <p className="font-bold text-navy-950 dark:text-white line-clamp-1">{report.description}</p>
+                                  <span className="text-[10px] text-slate-400 italic">By {report.reporter_name || 'Anonim'} • {report.prodi}</span>
+                                </div>
+                              </td>
+                              <td className="px-8 py-6">
+                                <div className="flex flex-col gap-2">
+                                  <StatusBadge status={report.status} />
+                                  <div className="flex items-center gap-2">
+                                    <div className={`h-1.5 w-1.5 rounded-full ${sla.overdue ? 'bg-rose-500 animate-pulse' : sla.warning ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    <span className={`text-[10px] font-black uppercase tracking-tighter ${sla.overdue ? 'text-rose-500' : sla.warning ? 'text-amber-600' : 'text-slate-400'}`}>
+                                      {sla.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-8 py-6 text-right">
+                                <button
+                                  onClick={() => openDetail(report)}
+                                  className="rounded-xl bg-navy-950 dark:bg-white px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white dark:text-navy-950 transition-all hover:scale-110 active:scale-95 shadow-lg shadow-navy-900/20"
+                                >
+                                  Detail →
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {paginationState.totalPages > 1 && (
+                  <div className="mt-8 flex items-center justify-between border-t border-slate-100 dark:border-white/5 pt-8 px-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Halaman {currentPage} dari {paginationState.totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={!paginationState.hasPreviousPage}
+                        onClick={() => setCurrentPage(prev => prev - 1)}
+                        className="rounded-xl border border-slate-200 dark:border-white/10 px-5 py-2 text-xs font-bold disabled:opacity-30 transition hover:bg-slate-100 dark:hover:bg-white/5"
+                      >
+                        ← Sebelumnya
+                      </button>
+                      <button
+                        disabled={!paginationState.hasNextPage}
+                        onClick={() => setCurrentPage(prev => prev + 1)}
+                        className="rounded-xl border border-slate-200 dark:border-white/10 px-5 py-2 text-xs font-bold disabled:opacity-30 transition hover:bg-slate-100 dark:hover:bg-white/5"
+                      >
+                        Berikutnya →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {currentTab === 'berita' && (
+             <div className="space-y-10">
+                <section className="relative overflow-hidden rounded-[3rem] border border-white/40 bg-white/30 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.03)] backdrop-blur-md lg:p-12 dark:border-slate-800/50 dark:bg-slate-950/20">
+                  <div className="flex flex-col gap-4 border-b border-slate-200 dark:border-white/5 pb-10">
+                    <div className="flex items-center gap-3">
+                      <div className="h-0.5 w-8 bg-rose-500" />
+                      <p className="text-[10px] font-black tracking-[0.3em] text-rose-600 dark:text-rose-500 uppercase">Publikasi Konten</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <h2 className="font-display text-3xl font-bold tracking-tight text-navy-950 dark:text-white md:text-4xl">Ruang <span className="text-rose-600">Investigasi</span></h2>
+                      {editingNewsId && (
+                        <button onClick={handleCancelEditNews} className="text-xs font-black text-rose-500 uppercase tracking-widest hover:underline">Batal Edit ✕</button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-10 grid gap-10 lg:grid-cols-[1.2fr_1.8fr]">
+                    {/* Immersive Form */}
+                    <div className="rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/50 p-8 shadow-xl">
+                      <h3 className="text-lg font-bold text-navy-950 dark:text-white mb-6 flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+                        {editingNewsId ? 'Mode Editor: Perbarui' : 'Draf Berita Baru'}
+                      </h3>
+                      <form onSubmit={handleCreateNews} className="space-y-5">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Headline Berita</label>
+                          <input
+                            type="text"
+                            value={newsTitle}
+                            onChange={(e) => setNewsTitle(e.target.value)}
+                            placeholder="Judul yang provokatif dan tajam..."
+                            className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-5 py-4 text-sm outline-none focus:border-rose-500 transition-all font-bold"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Lead / Ringkasan</label>
+                          <textarea
+                            value={newsSummary}
+                            onChange={(e) => setNewsSummary(e.target.value)}
+                            placeholder="Paragraf pembuka yang meringkas isi..."
+                            rows={3}
+                            className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-5 py-4 text-sm outline-none focus:border-rose-500 transition-all leading-relaxed"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Konten Investigasi</label>
+                          <textarea
+                            value={newsContent}
+                            onChange={(e) => setNewsContent(e.target.value)}
+                            placeholder="Tuliskan detail berita, fakta lapangan, dan hasil wawancara..."
+                            rows={10}
+                            className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800 px-5 py-4 text-sm outline-none focus:border-rose-500 transition-all font-serif text-lg leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Media Visual</label>
+                          <ImageUploadManager
+                            onImagesUploaded={(urls) => setExistingImageUrls(prev => [...prev, ...urls])}
+                            currentImages={existingImageUrls}
+                          />
+                        </div>
+
+                        {newsError && <p className="text-xs font-bold text-rose-500 bg-rose-500/10 p-3 rounded-xl">{newsError}</p>}
+                        {newsMessage && <p className="text-xs font-bold text-emerald-500 bg-emerald-500/10 p-3 rounded-xl">{newsMessage}</p>}
+
+                        <button
+                          type="submit"
+                          disabled={savingNews || !permissions.canPublishContent}
+                          className="w-full rounded-2xl bg-rose-600 py-5 text-sm font-black text-white transition hover:bg-rose-700 hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl shadow-rose-600/20"
+                        >
+                          {savingNews ? 'MEMPROSES PUBLIKASI...' : editingNewsId ? 'PERBARUI ARTIKEL' : 'PUBLIKASIKAN ARTIKEL'}
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Published Feed */}
+                    <div className="space-y-6 overflow-y-auto max-h-[1000px] pr-4 custom-scrollbar">
+                      <div className="sticky top-0 z-10 bg-slate-50/80 dark:bg-navy-950/80 backdrop-blur-sm py-4 border-b border-slate-200 dark:border-white/5 mb-6">
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.3em]">Feed Berita Terbit</h3>
                       </div>
-                    )}
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-        )}
+                      
+                      {newsItems.length === 0 ? (
+                        <div className="rounded-[2.5rem] border border-dashed border-slate-200 dark:border-white/10 p-20 text-center">
+                          <p className="text-slate-400 font-bold italic">Belum ada artikel publik.</p>
+                        </div>
+                      ) : (
+                        newsItems.map((news) => (
+                          <div key={news.id} className="group relative overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/50 p-8 shadow-sm transition-all hover:shadow-2xl dark:border-white/5 dark:bg-white/5">
+                            <div className="flex flex-col sm:flex-row items-start gap-8">
+                               {news.image_urls && news.image_urls[0] && (
+                                <div className="h-40 w-full sm:w-40 shrink-0 overflow-hidden rounded-2xl border border-slate-100 dark:border-white/10 shadow-lg">
+                                  <img src={news.image_urls[0]} alt="News" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{formatDate(news.created_at)}</span>
+                                  <span className="h-1 w-1 rounded-full bg-slate-300"></span>
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{news.image_urls?.length || 0} Foto</span>
+                                </div>
+                                <h4 className="text-2xl font-bold text-navy-950 dark:text-white mb-3 group-hover:text-rose-600 transition-colors leading-tight">{news.title}</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed mb-6">{news.summary || 'Tidak ada lead berita.'}</p>
+                                
+                                <div className="flex items-center gap-4">
+                                  <button
+                                    onClick={() => handleEditNews(news)}
+                                    className="flex items-center gap-2 rounded-xl bg-navy-950 dark:bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white dark:text-navy-950 transition-all hover:scale-105"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => { if(confirm('Hapus berita ini secara permanen?')) handleDeleteNews(news.id) }}
+                                    disabled={deletingNewsId === news.id}
+                                    className="flex items-center gap-2 rounded-xl border border-rose-200 text-rose-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all"
+                                  >
+                                    {deletingNewsId === news.id ? 'MENGHAPUS...' : 'Hapus'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </section>
+             </div>
+          )}
 
-        {currentTab === 'analytics' && (
-          <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-            <div className="border-b border-slate-200/70 pb-5 mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Dashboard Analitik</p>
-              <h2 className="mt-1 text-2xl font-bold text-navy-950">Statistik dan Tren Laporan</h2>
-            </div>
+          {currentTab === 'analytics' && (
+             <div className="animate-fade-in">
+                <AnalyticsDashboard
+                  analytics={analytics}
+                  weeklyStats={weeklyStats}
+                  categoryStats={categoryStats}
+                />
+             </div>
+          )}
 
-            {analyticsLoading ? (
-              <div className="text-center py-12">
-                <p className="text-slate-600">Memuat data analitik...</p>
-              </div>
-            ) : (
-              <AnalyticsDashboard analytics={analytics} weeklyStats={weeklyStats} categoryStats={categoryStats} />
-            )}
-          </section>
-        )}
+          {currentTab === 'audit' && (
+             <div className="animate-fade-in">
+                <AuditLogViewer logs={auditLogs} isLoading={auditLoading} />
+             </div>
+          )}
+        </div>
+      </main>
 
-        {currentTab === 'audit' && permissions.canViewAuditLog && (
-          <section className="glass-panel rounded-[2rem] p-6 shadow-soft lg:p-8">
-            <div className="border-b border-slate-200/70 pb-5 mb-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Audit Logs</p>
-              <h2 className="mt-1 text-2xl font-bold text-navy-950">Riwayat Aktivitas Admin</h2>
-            </div>
-
-            {auditLoading ? (
-              <div className="text-center py-12">
-                <p className="text-slate-600">Memuat audit logs...</p>
-              </div>
-            ) : (
-              <AuditLogViewer logs={auditLogs} isLoading={auditLoading} />
-            )}
-          </section>
-        )}
-      </div>
-
+      {/* Slide-over Detail Panel (Immersive Version) */}
       {selectedReport && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              requestCloseSelectedReport();
-            }
-          }}
-        >
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-soft lg:p-8">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div className="absolute inset-0 bg-navy-950/80 backdrop-blur-md animate-fade-in" onClick={requestCloseSelectedReport} />
+          
+          <div className="relative w-full max-w-3xl bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col animate-slide-in-right overflow-hidden">
+             {/* Dynamic Mesh Bg for Panel */}
+            <div className="absolute inset-0 -z-10 opacity-5 pointer-events-none">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-amber-500 via-transparent to-rose-600 blur-[120px]"></div>
+            </div>
+
+            {/* Panel Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 px-10 py-8">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-navy-700">Detail Laporan</p>
-                <h3 className="mt-1 text-2xl font-bold text-navy-950">{categoryLabels[selectedReport.category] ?? selectedReport.category}</h3>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-500 mb-1">Report Insights</p>
+                <h3 className="font-display text-3xl font-black text-navy-950 dark:text-white tracking-tighter">#{parseReportCode(selectedReport.additional_data) || 'NO-ID'}</h3>
               </div>
               <button
-                type="button"
-                onClick={() => requestCloseSelectedReport()}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-navy-200 hover:text-navy-900"
+                onClick={requestCloseSelectedReport}
+                className="rounded-2xl bg-slate-100 dark:bg-white/5 p-4 text-slate-400 hover:text-navy-950 dark:hover:text-white transition-all hover:rotate-90"
               >
-                Tutup
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-              <div className="space-y-4">
-                <InfoRow label="Timestamp" value={formatDate(selectedReport.created_at)} />
-                <InfoRow label="Kode Tiket" value={parseReportCode(selectedReport.additional_data) || '-'} />
-                <InfoRow label="Reporter" value={selectedReport.reporter_name || '-'} />
-                <InfoRow label="Program Studi & Angkatan" value={selectedReport.prodi} />
-                <InfoRow label="WhatsApp" value={selectedReport.whatsapp} />
-                <InfoRow label="Privasi" value={selectedReport.privacy} />
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Status Laporan</div>
-                  <select
-                    value={statusDraft}
-                    title="Status Laporan"
-                    onChange={(event) => setStatusDraft(event.target.value)}
-                    disabled={!permissions.canEditReports}
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                  <div className="mt-2">
-                    <StatusBadge status={statusDraft} />
-                  </div>
-
-                  <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Catatan Admin/Redaksi</label>
-                  <textarea
-                    value={redaksiNoteDraft}
-                    onChange={(event) => setRedaksiNoteDraft(event.target.value)}
-                    rows={4}
-                    disabled={!permissions.canEditReports}
-                    placeholder="Isi hasil verifikasi, temuan lapangan, atau catatan redaksi yang bisa dilihat user."
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-navy-300 focus:ring-4 focus:ring-navy-100"
-                  />
-
-                  {permissions.canEditReports ? (
-                    <button
-                      type="button"
-                      onClick={saveStatus}
-                      disabled={savingStatus || !hasStatusColumn}
-                      className="mt-3 inline-flex rounded-full bg-navy-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-navy-800 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {!hasStatusColumn ? 'Status Belum Aktif' : savingStatus ? 'Menyimpan...' : 'Simpan Status'}
-                    </button>
-                  ) : (
-                    <p className="mt-3 text-xs font-semibold text-slate-500">Mode monitoring: status laporan hanya bisa dilihat.</p>
-                  )}
+            {/* Panel Body */}
+            <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+              {/* Status Indicator */}
+              <div className="flex flex-wrap items-center gap-6 pb-6 border-b border-slate-100 dark:border-white/5">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Status Saat Ini</span>
+                  <StatusBadge status={selectedReport.status} />
                 </div>
-                <InfoRow label="Deskripsi" value={selectedReport.description} />
-                {String(selectedReport.additional_data?.opini ?? '').trim().length > 0 && (
-                  <InfoRow label="Opini Pelapor" value={String(selectedReport.additional_data?.opini)} />
-                )}
-                <AdditionalDataCard data={selectedReport.additional_data} />
-
-                <AttachmentPanel attachments={parseReportAttachments(selectedReport.additional_data)} />
-
-                {reportFlags[selectedReport.id] && (
-                  <ModerationFlagsPanel
-                    reportId={selectedReport.id}
-                    flags={reportFlags[selectedReport.id]}
-                    onAddFlag={handleAddFlag}
-                    onResolveFlag={handleResolveFlag}
-                    isLoading={flagsLoading}
-                    readOnly={!permissions.canModerateContent}
-                  />
-                )}
+                <div className="h-8 w-px bg-slate-100 dark:bg-white/5"></div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Waktu Kirim</span>
+                  <span className="text-sm font-bold text-navy-950 dark:text-white">{formatDate(selectedReport.created_at)}</span>
+                </div>
+                <div className="ml-auto flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
+                   <span className={`h-2 w-2 rounded-full ${getSlaMeta(selectedReport.created_at, selectedReport.status).overdue ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{getSlaMeta(selectedReport.created_at, selectedReport.status).label}</span>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50">
-                  {selectedReport.evidence_url ? (
-                    <img src={selectedReport.evidence_url} alt="Bukti laporan" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-slate-500">
-                      Tidak ada bukti foto yang diunggah.
-                    </div>
-                  )}
+              {/* Identity & Context */}
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="rounded-3xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 p-6">
+                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Identitas Pelapor</p>
+                   <p className="text-lg font-black text-navy-950 dark:text-white leading-tight">{selectedReport.reporter_name || 'ANONIM (PROTECTED)'}</p>
+                   <p className="text-xs font-bold text-amber-600 mt-1">{selectedReport.prodi}</p>
                 </div>
-                <div className="rounded-[1.5rem] border border-navy-100 bg-navy-50 p-4 text-sm text-navy-950">
-                  Laporan ini disimpan pada tabel reports dan dapat ditindaklanjuti sesuai alur redaksi.
+                <div className="rounded-3xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 p-6">
+                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Kontak Jalur Cepat</p>
+                   <p className="text-lg font-black text-navy-950 dark:text-white leading-tight">{selectedReport.whatsapp}</p>
+                   <span className="inline-flex mt-2 rounded-full bg-navy-950 dark:bg-white/10 px-2 py-0.5 text-[9px] font-black uppercase text-white">{selectedReport.privacy}</span>
                 </div>
+              </div>
+
+              {/* Content Description */}
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-amber-500 to-rose-600 rounded-[2rem] blur opacity-5 group-hover:opacity-10 transition duration-1000"></div>
+                <div className="relative rounded-[2rem] border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-800 p-8 shadow-sm">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Kronologi Masalah</p>
+                  <p className="text-lg leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-medium">{selectedReport.description}</p>
+                </div>
+              </div>
+
+              {/* Evidence Gallery */}
+              {selectedReport.evidence_url && (
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Visual Evidence</p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {parseReportAttachments(selectedReport.additional_data).map((att, i) => (
+                      <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="group relative aspect-video overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 shadow-lg">
+                        <img src={att.url} alt="Evidence" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                        <div className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
+                          <div className="rounded-full bg-white/20 p-4 border border-white/40">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                             </svg>
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Editorial Actions (The Most Important Section) */}
+              <div className="rounded-[3rem] border-2 border-amber-500/20 bg-amber-500/5 p-10 space-y-8">
+                <div className="flex items-center gap-3 mb-2">
+                   <div className="h-4 w-4 rounded-full bg-amber-500 animate-pulse"></div>
+                   <h4 className="font-display text-xl font-black text-navy-950 dark:text-amber-500 uppercase tracking-tight">Editorial Workflow</h4>
+                </div>
+                
+                <div className="grid gap-8">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Langkah Strategis</label>
+                    <select
+                      value={statusDraft}
+                      onChange={(e) => setStatusDraft(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm font-bold outline-none focus:border-amber-500 shadow-sm"
+                    >
+                      {statusOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Catatan Verifikasi & Redaksi</label>
+                    <textarea
+                      value={redaksiNoteDraft}
+                      onChange={(e) => setRedaksiNoteDraft(e.target.value)}
+                      placeholder="Tambahkan catatan investigasi, fakta baru, atau rilis singkat yang dapat dipantau pelapor..."
+                      rows={5}
+                      className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-6 py-4 text-sm outline-none focus:border-amber-500 shadow-sm leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    onClick={saveStatus}
+                    disabled={savingStatus || !permissions.canEditReports}
+                    className="w-full rounded-2xl bg-navy-950 dark:bg-amber-500 py-5 text-sm font-black uppercase tracking-widest text-white dark:text-navy-950 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl shadow-navy-950/20 dark:shadow-amber-500/20"
+                  >
+                    {savingStatus ? 'MENYIMPAN DATA...' : 'KONFIRMASI UPDATE LAPORAN'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Flags & Moderation */}
+              <ModerationFlagsPanel
+                reportId={selectedReport.id}
+                flags={reportFlags[selectedReport.id] || []}
+                onAddFlag={handleAddFlag}
+                onResolveFlag={handleResolveFlag}
+                isLoading={flagsLoading}
+                readOnly={!permissions.canModerateContent}
+              />
+              
+              <div className="pt-10 pb-6 text-center">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID System: {selectedReport.id}</p>
               </div>
             </div>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -1441,19 +1440,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SlaBadge({ createdAt, status }: { createdAt: string; status: string }) {
-  const sla = getSlaMeta(createdAt, status);
-  const toneClass =
-    sla.tone === 'rose'
-      ? 'border-rose-200 bg-rose-50 text-rose-800'
-      : sla.tone === 'amber'
-        ? 'border-amber-200 bg-amber-50 text-amber-800'
-        : sla.tone === 'emerald'
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-          : 'border-cyan-200 bg-cyan-50 text-cyan-800';
-
-  return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${toneClass}`}>{sla.label}</span>;
-}
 
 function AttachmentPanel({ attachments }: { attachments: ReturnType<typeof parseReportAttachments> }) {
   return (
@@ -1505,18 +1491,3 @@ function AttachmentPanel({ attachments }: { attachments: ReturnType<typeof parse
   );
 }
 
-function AdminMetricCard({ label, value, tone }: { label: string; value: number; tone: 'navy' | 'amber' | 'emerald' | 'rose' }) {
-  const toneClass: Record<'navy' | 'amber' | 'emerald' | 'rose', string> = {
-    navy: 'border-navy-100 bg-navy-50 text-navy-900',
-    amber: 'border-amber-100 bg-amber-50 text-amber-900',
-    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-900',
-    rose: 'border-rose-100 bg-rose-50 text-rose-900'
-  };
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneClass[tone]}`}>
-      <p className="text-xs uppercase tracking-[0.16em]">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-    </div>
-  );
-}
