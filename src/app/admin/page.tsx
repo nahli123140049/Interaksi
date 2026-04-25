@@ -576,6 +576,42 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteReport = async (reportId: string) => {
+    if (!permissions.canDeleteReports) {
+      setAuthError('Role ini tidak memiliki izin untuk menghapus laporan.');
+      return;
+    }
+
+    if (!confirm('Hapus laporan ini secara permanen? Tindakan ini tidak dapat dibatalkan.')) {
+      return;
+    }
+
+    setSavingStatus(true);
+    setAuthError('');
+
+    try {
+      const { error } = await supabase.from('reports').delete().eq('id', reportId);
+
+      if (error) throw error;
+
+      await logAuditAction({
+        admin_email: adminEmail,
+        action: 'delete_report',
+        table_name: 'reports',
+        record_id: reportId,
+        description: `Laporan dengan ID ${reportId} dihapus secara permanen.`
+      });
+
+      setReports((current) => current.filter((r) => r.id !== reportId));
+      setSelectedReport(null);
+      setAuthError('Laporan berhasil dihapus.');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Gagal menghapus laporan.');
+    } finally {
+      setSavingStatus(false);
+    }
+  };
+
   const handleCreateNews = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!permissions.canPublishContent) {
@@ -1395,13 +1431,25 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  <button
-                    onClick={saveStatus}
-                    disabled={savingStatus || !permissions.canEditReports}
-                    className="w-full rounded-2xl bg-navy-950 dark:bg-amber-500 py-5 text-sm font-black uppercase tracking-widest text-white dark:text-navy-950 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl shadow-navy-950/20 dark:shadow-amber-500/20"
-                  >
-                    {savingStatus ? 'MENYIMPAN DATA...' : 'KONFIRMASI UPDATE LAPORAN'}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={saveStatus}
+                      disabled={savingStatus || !permissions.canEditReports}
+                      className="flex-1 rounded-2xl bg-navy-950 dark:bg-amber-500 py-5 text-sm font-black uppercase tracking-widest text-white dark:text-navy-950 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl shadow-navy-950/20 dark:shadow-amber-500/20"
+                    >
+                      {savingStatus ? 'MENYIMPAN...' : 'KONFIRMASI UPDATE'}
+                    </button>
+
+                    {permissions.canDeleteReports && (
+                      <button
+                        onClick={() => handleDeleteReport(selectedReport.id)}
+                        disabled={savingStatus}
+                        className="rounded-2xl border-2 border-rose-500/50 px-8 py-5 text-sm font-black uppercase tracking-widest text-rose-500 transition-all hover:bg-rose-500 hover:text-white active:scale-95 disabled:opacity-50"
+                      >
+                        Hapus
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

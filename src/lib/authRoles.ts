@@ -19,6 +19,7 @@ export type RolePermissions = {
   canCreateNews: boolean;
   canEditNews: boolean;
   canDeleteNews: boolean;
+  canDeleteReports: boolean;
   canModerateContent: boolean;
   canManageUsers: boolean;
   canPublishContent: boolean;
@@ -37,6 +38,7 @@ export function getRolePermissions(role: AdminRole | null): RolePermissions {
       canCreateNews: true,
       canEditNews: true,
       canDeleteNews: true,
+      canDeleteReports: true,
       canModerateContent: true,
       canManageUsers: true,
       canPublishContent: true
@@ -51,6 +53,7 @@ export function getRolePermissions(role: AdminRole | null): RolePermissions {
       canCreateNews: true,
       canEditNews: true,
       canDeleteNews: false,
+      canDeleteReports: false,
       canModerateContent: true,
       canManageUsers: false,
       canPublishContent: true
@@ -64,6 +67,7 @@ export function getRolePermissions(role: AdminRole | null): RolePermissions {
     canCreateNews: false,
     canEditNews: false,
     canDeleteNews: false,
+    canDeleteReports: false,
     canModerateContent: false,
     canManageUsers: false,
     canPublishContent: false
