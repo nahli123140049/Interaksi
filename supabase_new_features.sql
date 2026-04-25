@@ -135,4 +135,9 @@ grant select on public.reports_by_category to anon, authenticated;
 alter table public.reports add column if not exists has_pending_flags boolean default false;
 create index if not exists idx_reports_pending_flags on public.reports (has_pending_flags) where has_pending_flags = true;
 
+-- Fix for Live Metrics: ensure views can count all reports regardless of RLS
+alter view if exists public.reports_analytics owner to postgres;
+alter view if exists public.reports_weekly_stats owner to postgres;
+alter view if exists public.reports_by_category owner to postgres;
+
 notify pgrst, 'reload schema';
