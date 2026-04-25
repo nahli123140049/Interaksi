@@ -7,6 +7,9 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { getReportCategoryTitle } from '@/lib/reportUtils';
 import { StatusBadge } from '@/components/StatusBadge';
 
+// Pastikan dashboard selalu mengambil data terbaru (disable cache)
+export const revalidate = 0;
+
 // === COMPONENTS FETCHING SUPABASE DATA (WITH SUSPENSE) ===
 
 async function LiveMetrics() {
