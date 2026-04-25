@@ -111,12 +111,10 @@ for select
 to authenticated
 using (true);
 
+-- Policy ini dihapus karena membocorkan data ke publik. 
+-- Hanya user authenticated (admin/monitoring) yang boleh membaca laporan.
+-- Policy "authenticated can read reports" akan diatur di supabase_auth_roles.sql
 drop policy if exists "public can read reports" on public.reports;
-create policy "public can read reports"
-on public.reports
-for select
-to anon, authenticated
-using (true);
 
 -- Opsional: kalau nanti admin mau ubah status/tindak lanjut
 drop policy if exists "authenticated can update reports" on public.reports;
@@ -128,9 +126,17 @@ using (true)
 with check (true);
 
 -- 3) Storage bucket evidence
-insert into storage.buckets (id, name, public)
-values ('evidence', 'evidence', true)
-on conflict (id) do nothing;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'evidence', 
+  'evidence', 
+  true, 
+  5242880, 
+  '{image/jpeg, image/png, application/pdf}'
+)
+on conflict (id) do update set
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 -- Upload bukti oleh user publik/login
 drop policy if exists "public can upload evidence" on storage.objects;
