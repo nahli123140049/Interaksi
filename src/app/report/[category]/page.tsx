@@ -128,6 +128,8 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
   const [lastReportCode, setLastReportCode] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastConfig, setToastConfig] = useState({ message: '', type: 'success' as 'success' | 'error' | 'info' });
+  const [isCopied, setIsCopied] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const updateField = <K extends keyof FieldMap>(field: K, value: FieldMap[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -237,8 +239,9 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
         throw new Error(`Gagal menyimpan laporan: ${insertError.message}`);
       }
 
-      setMessage(`Laporan berhasil dikirim. Nomor tiket kamu: ${reportCode}. Terima kasih sudah menyuarakan isu kampus.`);
       setLastReportCode(reportCode);
+      setShowSuccessModal(true);
+      setIsCopied(false);
       setForm(initialFormState);
       setSelectedFilesSummary([]);
     } catch (submitError) {
@@ -253,6 +256,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
 
     try {
       await navigator.clipboard.writeText(lastReportCode);
+      setIsCopied(true);
       setToastConfig({ message: `Nomor tiket ${lastReportCode} disalin!`, type: 'success' });
       setShowToast(true);
     } catch {
@@ -471,26 +475,8 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
             </div>
 
             {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-            {message && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
-            {lastReportCode && (
-              <div className="rounded-2xl border border-navy-200 dark:border-slate-700 bg-navy-50 dark:bg-slate-800/50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-navy-700 dark:text-amber-500">Nomor Tiket Laporan</p>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <span className="rounded-full border border-navy-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-1.5 font-mono text-sm font-bold text-navy-900 dark:text-white">
-                    {lastReportCode}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyTicketCode}
-                    className="rounded-full border border-navy-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-1.5 text-xs font-semibold text-navy-800 dark:text-slate-200 transition hover:border-navy-400 hover:text-navy-950"
-                  >
-                    Copy Kode
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row">
+            
+            <div className="flex flex-col gap-3 sm:flex-row pt-4">
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -510,6 +496,82 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
         </section>
       </div>
       </main>
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-950/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md animate-fade-in-up rounded-[2.5rem] bg-white dark:bg-slate-900 p-8 shadow-2xl">
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-8 h-8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+            </div>
+            
+            <h3 className="text-center font-display text-2xl font-bold text-navy-950 dark:text-white mb-2">Laporan Terkirim!</h3>
+            <p className="text-center text-sm text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
+              Laporanmu sedang diproses oleh redaksi. <span className="font-bold text-rose-600 dark:text-rose-500">Penting:</span> Simpan kode tiket di bawah untuk melacak progres laporanmu.
+            </p>
+
+            <div className="relative group mb-6">
+              <div className="absolute -inset-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative flex flex-col items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Nomor Tiket Anda</span>
+                <span className="font-mono text-3xl font-black text-navy-950 dark:text-amber-400 tracking-tighter">{lastReportCode}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={handleCopyTicketCode}
+                className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold transition-all ${
+                  isCopied 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-navy-950 dark:bg-amber-500 text-white dark:text-navy-950 hover:scale-[1.02]'
+                }`}
+              >
+                {isCopied ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.626.285 1.1.89 1.248 1.597M18 13.5c0 1.105-.895 2-2 2H8c-1.105 0-2-.895-2-2V9.5a2 2 0 012-2h8a2 2 0 012 2v4z" />
+                    </svg>
+                    Berhasil Disalin!
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                    </svg>
+                    Salin Kode Tiket
+                  </>
+                )}
+              </button>
+              
+              <button
+                type="button"
+                disabled={!isCopied}
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  router.push('/');
+                }}
+                className={`w-full rounded-2xl py-4 text-sm font-bold transition-all ${
+                  isCopied 
+                    ? 'bg-slate-100 dark:bg-slate-800 text-navy-950 dark:text-white hover:bg-slate-200' 
+                    : 'bg-slate-50 dark:bg-slate-900/50 text-slate-300 dark:text-slate-700 cursor-not-allowed border border-dashed border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                Selesai & Kembali
+              </button>
+              {!isCopied && (
+                <p className="text-center text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1">
+                  Wajib salin kode sebelum lanjut
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showToast && (
         <Toast
           message={toastConfig.message}
