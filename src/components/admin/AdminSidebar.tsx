@@ -12,6 +12,8 @@ type AdminSidebarProps = {
   adminRole: string;
   onLogout: () => void;
   availableTabs: Array<{ id: TabName; label: string }>;
+  isOpen: boolean;
+  onClose: () => void;
 };
 
 export function AdminSidebar({
@@ -20,10 +22,19 @@ export function AdminSidebar({
   adminEmail,
   adminRole,
   onLogout,
-  availableTabs
+  availableTabs,
+  isOpen,
+  onClose
 }: AdminSidebarProps) {
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-72 bg-navy-950 text-white z-50 flex flex-col border-r border-white/5 shadow-2xl overflow-hidden">
+    <>
+      {/* Mobile Overlay */}
+      <div 
+        className={`fixed inset-0 bg-navy-950/60 backdrop-blur-sm z-[55] transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+      />
+
+      <aside className={`fixed left-0 top-0 bottom-0 w-72 bg-navy-950 text-white z-[60] flex flex-col border-r border-white/5 shadow-2xl overflow-hidden transition-transform duration-500 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       {/* Mesh Gradient Background */}
       <div className="absolute inset-0 -z-10 opacity-20">
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
@@ -121,5 +132,6 @@ export function AdminSidebar({
         </button>
       </div>
     </aside>
+    </>
   );
 }

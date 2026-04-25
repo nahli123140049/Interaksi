@@ -121,6 +121,8 @@ for insert
 to anon, authenticated
 with check (true);
 
+drop policy if exists "public can read reports" on public.reports;
+
 drop policy if exists "authenticated can read reports" on public.reports;
 create policy "authenticated can read reports"
 on public.reports
