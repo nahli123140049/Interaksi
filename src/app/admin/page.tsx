@@ -953,6 +953,18 @@ export default function AdminPage() {
               >
                 {loading ? 'AUTHORIZING...' : 'OPEN ACCESS'}
               </button>
+
+              <div className="flex justify-center pt-2">
+                <Link 
+                  href="/" 
+                  className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-amber-500 dark:text-slate-500 dark:hover:text-amber-400 transition-colors flex items-center gap-2 group"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-3 h-3 transition-transform group-hover:-translate-x-1">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                  </svg>
+                  Kembali ke Beranda
+                </Link>
+              </div>
             </form>
           </div>
         </div>

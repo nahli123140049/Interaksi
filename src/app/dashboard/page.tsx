@@ -276,7 +276,7 @@ export default function PublicDashboardPage() {
               <div>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="h-1 w-12 rounded-full bg-amber-500" />
-                  <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-600 dark:text-amber-500">Command Center</p>
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-600 dark:text-amber-500">Dashboard Publik</p>
                 </div>
                 <h1 className="font-display text-5xl font-bold tracking-tight text-navy-950 dark:text-white md:text-6xl">Aspirasi <span className="text-amber-600">Publik</span></h1>
                 <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 dark:text-slate-400">
@@ -285,30 +285,7 @@ export default function PublicDashboardPage() {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/"
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:border-navy-200 hover:text-navy-900"
-                >
-                  Beranda
-                </Link>
-                <Link
-                  href="/bantuan"
-                  className="inline-flex items-center justify-center rounded-full border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-5 py-3 text-sm font-semibold text-amber-800 dark:text-amber-100 transition hover:bg-amber-100"
-                >
-                  Bantuan Singkat
-                </Link>
-                <Link
-                  href="/lacak"
-                  className="inline-flex items-center justify-center rounded-full border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950 px-5 py-3 text-sm font-semibold text-sky-800 dark:text-sky-100 transition hover:bg-sky-100"
-                >
-                  Lacak Laporan
-                </Link>
-                <Link
-                  href="/admin"
-                  className="inline-flex items-center justify-center rounded-full bg-navy-950 dark:bg-white px-5 py-3 text-sm font-semibold text-white dark:text-navy-950 transition hover:bg-navy-800"
-                >
-                  Dashboard Admin
-                </Link>
+                {/* Navigasi dipindahkan ke Navbar untuk tampilan lebih bersih */}
               </div>
             </div>
 

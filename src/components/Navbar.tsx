@@ -18,8 +18,9 @@ export function Navbar() {
 
   const navLinks = [
     { name: 'Beranda', href: '/' },
-    { name: 'Dashboard', href: '/dashboard' },
+    { name: 'Dashboard Publik', href: '/dashboard' },
     { name: 'Bantuan', href: '/bantuan' },
+    { name: 'Admin', href: '/admin' },
   ];
 
   return (

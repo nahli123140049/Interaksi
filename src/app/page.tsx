@@ -625,7 +625,7 @@ export default function HomePage() {
             <h4 className="text-sm font-bold text-navy-950 dark:text-white mb-4">Navigasi</h4>
             <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
               <li><Link href="/" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Beranda</Link></li>
-              <li><Link href="/dashboard" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Command Center</Link></li>
+              <li><Link href="/dashboard" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Dashboard Publik</Link></li>
               <li><Link href="/lacak" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Lacak Laporan</Link></li>
               <li><Link href="/admin" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Admin Dashboard</Link></li>
               <li><Link href="/bantuan" className="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">Bantuan</Link></li>

@@ -7,27 +7,27 @@ export type StatusMeta = {
 export const statusMetaMap: Record<string, StatusMeta> = {
   'Menunggu Verifikasi': {
     label: 'Menunggu Verifikasi',
-    description: 'Laporan baru masuk, belum disentuh.',
+    description: 'Laporan telah diterima dan sedang dalam antrean untuk diperiksa oleh tim redaksi.',
     badgeClass: 'border border-amber-200 bg-amber-50 text-amber-800'
   },
   'Proses Investigasi': {
     label: 'Proses Investigasi',
-    description: 'Reporter lagi cek lapangan atau wawancara saksi.',
+    description: 'Tim kami sedang melakukan verifikasi lapangan, mengumpulkan bukti tambahan, atau menghubungi pihak terkait.',
     badgeClass: 'border border-blue-200 bg-blue-50 text-blue-800'
   },
   'Arsip Internal': {
     label: 'Arsip Internal',
-    description: 'Valid, tapi cuma buat simpenan data (tidak terbit).',
+    description: 'Laporan dinyatakan valid namun hanya disimpan sebagai data internal dan tidak dipublikasikan ke kanal publik.',
     badgeClass: 'border border-slate-200 bg-slate-100 text-slate-700'
   },
   'Telah Terbit': {
     label: 'Telah Terbit',
-    description: 'Sudah jadi berita di web/IG INTERAKSI.',
+    description: 'Hasil investigasi laporan ini telah resmi dipublikasikan melalui kanal berita INTERAKSI.',
     badgeClass: 'border border-emerald-200 bg-emerald-50 text-emerald-800'
   },
   'Ditolak/Tidak Valid': {
     label: 'Ditolak/Tidak Valid',
-    description: 'Laporan ngawur atau tanpa bukti sama sekali.',
+    description: 'Laporan tidak dapat ditindaklanjuti karena kurangnya bukti pendukung atau tidak memenuhi kriteria pelaporan.',
     badgeClass: 'border border-rose-200 bg-rose-50 text-rose-800'
   }
 };
