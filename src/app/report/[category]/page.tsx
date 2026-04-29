@@ -206,7 +206,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
 
           const extension = photo.name.split('.').pop() ?? 'bin';
           const fileName = `${category}/${reportCode}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-          const { error: uploadError } = await supabase.storage.from('evidence').upload(fileName, photo, { upsert: false });
+          const { error: uploadError } = await supabase.storage.from('evidence').upload(fileName, photo, { 
+            upsert: false,
+            contentType: photo.type || 'application/octet-stream'
+          });
 
           if (uploadError) {
             throw new Error(`Upload lampiran gagal: ${uploadError.message}`);

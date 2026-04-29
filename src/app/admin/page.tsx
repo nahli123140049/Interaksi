@@ -635,7 +635,10 @@ export default function AdminPage() {
       for (const photo of newsPhotos) {
         const extension = photo.name.split('.').pop() ?? 'jpg';
         const fileName = `news/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-        const upload = await supabase.storage.from('evidence').upload(fileName, photo, { upsert: false });
+        const upload = await supabase.storage.from('evidence').upload(fileName, photo, { 
+          upsert: false,
+          contentType: photo.type || 'image/jpeg'
+        });
 
         if (upload.error) {
           throw new Error(`Gagal upload foto berita: ${upload.error.message}`);
@@ -645,7 +648,7 @@ export default function AdminPage() {
         uploadedUrls.push(publicUrl);
       }
 
-      const mergedImageUrls = editingNewsId ? [...existingImageUrls, ...uploadedUrls] : uploadedUrls;
+      const mergedImageUrls = [...existingImageUrls, ...uploadedUrls];
 
       if (editingNewsId) {
         const update = await supabase
@@ -1230,7 +1233,9 @@ export default function AdminPage() {
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Media Visual</label>
                           <ImageUploadManager
+                            key={editingNewsId || 'new-news'}
                             onImagesUploaded={(urls) => setExistingImageUrls(prev => [...prev, ...urls])}
+                            onFilesChange={(files) => setNewsPhotos(files)}
                             currentImages={existingImageUrls}
                           />
                         </div>
@@ -1395,18 +1400,42 @@ export default function AdminPage() {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Visual Evidence</p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {parseReportAttachments(selectedReport.additional_data).map((att, i) => (
-                      <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="group relative aspect-video overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 shadow-lg">
-                        <img src={att.url} alt="Evidence" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                        <div className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
-                          <div className="rounded-full bg-white/20 p-4 border border-white/40">
-                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                             </svg>
+                      <div key={i} className="group relative aspect-video overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 shadow-lg bg-slate-50 dark:bg-slate-900">
+                        {att.kind === 'image' ? (
+                          <img src={att.url} alt="Evidence" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                        ) : att.kind === 'video' ? (
+                          <video 
+                            src={att.url} 
+                            className="h-full w-full object-cover bg-black" 
+                          />
+                        ) : (
+                          <div className="flex h-full w-full flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 p-4">
+                            <div className="rounded-full bg-amber-500/10 p-3 mb-2">
+                              <svg className="h-6 w-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-center dark:text-slate-300">Document (PDF)</span>
                           </div>
-                        </div>
-                      </a>
+                        )}
+                        
+                        {/* Unified Eye Icon Overlay */}
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
+                          <div className="rounded-full bg-white/20 p-4 border border-white/40">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </div>
+                        </a>
+                      </div>
                     ))}
+                  </div>
+                  
+                  {/* Attachment Details / Download List */}
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Attachment Details & Files</p>
+                    <AttachmentPanel attachments={parseReportAttachments(selectedReport.additional_data)} />
                   </div>
                 </div>
               )}
@@ -1528,38 +1557,37 @@ function AttachmentPanel({ attachments }: { attachments: ReturnType<typeof parse
       ) : (
         <div className="mt-3 space-y-4">
           {attachments.map((attachment, index) => (
-            <div key={`${attachment.url}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {getAttachmentLabel(attachment.kind)} - {attachment.name}
+            <div key={`${attachment.url}-${index}`} className="group rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 p-4 transition-all hover:border-amber-200 dark:hover:border-amber-900/30">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-200 dark:border-white/5">
+                    {attachment.kind === 'image' ? (
+                       <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                       </svg>
+                    ) : attachment.kind === 'video' ? (
+                       <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                       </svg>
+                    ) : (
+                       <svg className="h-5 w-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                       </svg>
+                    )}
                   </div>
-                  <div className="text-xs text-slate-500">
-                    {attachment.mime} {attachment.size > 0 ? `• ${formatBytes(attachment.size)}` : ''}
+                  <div className="truncate">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{getAttachmentLabel(attachment.kind)}</p>
+                    <p className="truncate text-xs font-bold text-navy-950 dark:text-slate-200">{attachment.name}</p>
                   </div>
                 </div>
                 <a
                   href={attachment.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-navy-200 bg-white px-3 py-1 text-xs font-semibold text-navy-800 transition hover:border-navy-300 hover:text-navy-950"
+                  className="shrink-0 rounded-full bg-navy-950 dark:bg-white px-5 py-2 text-[10px] font-black text-white dark:text-navy-950 transition-all hover:scale-105 active:scale-95 shadow-sm"
                 >
-                  Buka
+                  LIHAT
                 </a>
-              </div>
-
-              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                {attachment.kind === 'image' ? (
-                  <img src={attachment.url} alt={attachment.name} className="h-56 w-full object-contain" />
-                ) : attachment.kind === 'pdf' ? (
-                  <iframe title={attachment.name} src={attachment.url} className="h-96 w-full" />
-                ) : attachment.kind === 'video' ? (
-                  <video controls src={attachment.url} className="h-96 w-full bg-black" />
-                ) : (
-                  <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-slate-500">
-                    Pratinjau tidak tersedia. Gunakan tombol Buka.
-                  </div>
-                )}
               </div>
             </div>
           ))}

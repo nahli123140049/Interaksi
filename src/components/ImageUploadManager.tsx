@@ -12,7 +12,8 @@ export interface UploadedImage {
 }
 
 interface ImageUploadManagerProps {
-  onImagesUploaded: (urls: string[]) => void;
+  onImagesUploaded?: (urls: string[]) => void;
+  onFilesChange?: (files: File[]) => void;
   maxImages?: number;
   maxSizePerImage?: number;
   currentImages?: string[];
@@ -23,6 +24,7 @@ const UPLOAD_TIMEOUT = 45000; // 45 seconds
 
 export function ImageUploadManager({
   onImagesUploaded,
+  onFilesChange,
   maxImages = 5,
   maxSizePerImage = MAX_IMAGE_SIZE,
   currentImages = []
@@ -146,10 +148,12 @@ export function ImageUploadManager({
         }
       }
 
-      setUploads((prev) => [...prev, ...newUploads]);
+      const updatedUploads = [...uploads, ...newUploads];
+      setUploads(updatedUploads);
+      onFilesChange?.(updatedUploads.filter(u => !u.error).map(u => u.file));
       setIsDragging(false);
     },
-    [uploads.length, maxImages, maxSizePerImage, generatePreview]
+    [uploads, maxImages, maxSizePerImage, generatePreview, onFilesChange]
   );
 
   const handleDrop = useCallback(
@@ -162,8 +166,12 @@ export function ImageUploadManager({
   );
 
   const removeImage = useCallback((id: string) => {
-    setUploads((prev) => prev.filter((u) => u.id !== id));
-  }, []);
+    setUploads((prev) => {
+      const filtered = prev.filter((u) => u.id !== id);
+      onFilesChange?.(filtered.filter(u => !u.error).map(u => u.file));
+      return filtered;
+    });
+  }, [onFilesChange]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
