@@ -80,28 +80,8 @@ function getRedaksiNote(data: Record<string, unknown> | null) {
   return String(data?.redaksi_note ?? '').trim();
 }
 
-function getReportGallery(report: PublicReport) {
-  const primary = report.evidence_url ? [report.evidence_url] : [];
-  const rawExtra = report.additional_data?.evidence_urls;
-
-  let extra: string[] = [];
-  if (Array.isArray(rawExtra)) {
-    extra = rawExtra.map((value) => String(value)).filter(Boolean);
-  } else if (typeof rawExtra === 'string') {
-    try {
-      const parsed = JSON.parse(rawExtra);
-      if (Array.isArray(parsed)) {
-        extra = parsed.map((value) => String(value)).filter(Boolean);
-      }
-    } catch {
-      extra = rawExtra
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean);
-    }
-  }
-
-  return Array.from(new Set([...primary, ...extra]));
+function getReportGallery(report: PublicReport): ReturnType<typeof parseReportAttachments> {
+  return parseReportAttachments(report.additional_data);
 }
 
 export default function PublicDashboardPage() {
@@ -259,7 +239,7 @@ export default function PublicDashboardPage() {
 
   return (
     <PageShell>
-      <main className="relative min-h-screen overflow-hidden px-4 py-8 text-slate-900 dark:text-slate-100 md:px-6 lg:px-10">
+      <main className="relative min-h-screen overflow-x-hidden px-4 py-8 text-slate-900 dark:text-slate-100 md:px-6 lg:px-10">
         {/* Immersive Background Elements */}
         <div className="pointer-events-none fixed inset-0 -z-10">
           <div className="absolute -left-[10%] top-[10%] h-[500px] w-[500px] rounded-full bg-amber-200/20 blur-[120px] dark:bg-amber-900/10" />
@@ -308,9 +288,9 @@ export default function PublicDashboardPage() {
               </div>
               <h2 className="font-display text-3xl font-bold tracking-tight text-navy-950 dark:text-white md:text-4xl">Data & Informasi <span className="text-cyan-600">Transparansi</span></h2>
 
-              <div className="mt-8 flex flex-wrap gap-2">
+              <div className="mt-8 flex flex-nowrap overflow-x-auto gap-2 pb-2 custom-scrollbar">
                 {statusJourney.map((status) => (
-                  <span key={status} className="rounded-full border border-white/80 bg-white/50 px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 backdrop-blur-sm dark:border-slate-800/50 dark:bg-slate-900/50 dark:text-slate-400">
+                  <span key={status} className="shrink-0 rounded-full border border-white/80 bg-white/50 px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 backdrop-blur-sm dark:border-slate-800/50 dark:bg-slate-900/50 dark:text-slate-400">
                     {status}
                   </span>
                 ))}
@@ -532,7 +512,7 @@ export default function PublicDashboardPage() {
                 {/* Column 2: Gallery & Meta */}
                 <div className="space-y-4">
                   <ReportEvidenceCarousel
-                    images={getReportGallery(selectedReport)}
+                    attachments={getReportGallery(selectedReport)}
                     activeIndex={selectedEvidenceIndex}
                     onChangeIndex={setSelectedEvidenceIndex}
                   />
@@ -558,7 +538,7 @@ export default function PublicDashboardPage() {
             }
           }}
         >
-          <div className="w-full max-w-3xl overflow-hidden rounded-[2.5rem] bg-white dark:bg-slate-900 shadow-2xl border border-slate-100 dark:border-slate-800">
+          <div className="w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden rounded-[2.5rem] bg-white dark:bg-slate-900 shadow-2xl border border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-8 py-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-500 mb-1">Panduan Transparansi</p>
@@ -575,8 +555,8 @@ export default function PublicDashboardPage() {
               </button>
             </div>
 
-            <div className="p-8">
-              <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800">
+            <div className="p-8 overflow-y-auto custom-scrollbar">
+              <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400">
                     <tr>
@@ -703,15 +683,15 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
 }
 
 function ReportEvidenceCarousel({
-  images,
+  attachments,
   activeIndex,
   onChangeIndex
 }: {
-  images: string[];
+  attachments: ReturnType<typeof parseReportAttachments>;
   activeIndex: number;
   onChangeIndex: (value: number | ((previous: number) => number)) => void;
 }) {
-  if (images.length === 0) {
+  if (attachments.length === 0) {
     return (
       <div className="overflow-hidden rounded-[2.5rem] border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 aspect-square flex items-center justify-center p-8 text-center">
         <p className="text-sm text-slate-400 dark:text-slate-500 font-medium italic">Tidak ada bukti foto yang tersedia.</p>
@@ -722,23 +702,41 @@ function ReportEvidenceCarousel({
   return (
     <div className="overflow-hidden rounded-[2.5rem] border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-white dark:bg-slate-800">
-        <img 
-          src={images[activeIndex]} 
-          alt={`Bukti laporan ${activeIndex + 1}`} 
-          className="h-full w-full object-contain" 
-        />
-        {images.length > 1 && (
+        {attachments[activeIndex]?.kind === 'image' ? (
+          <img 
+            src={attachments[activeIndex].url} 
+            alt={`Bukti laporan ${activeIndex + 1}`} 
+            className="h-full w-full object-contain" 
+          />
+        ) : attachments[activeIndex]?.kind === 'video' ? (
+          <video 
+            controls 
+            src={attachments[activeIndex].url} 
+            className="h-full w-full object-contain bg-black" 
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full gap-4 bg-slate-50 dark:bg-slate-900/50 p-6">
+            <div className="h-20 w-20 rounded-full bg-amber-500/10 flex items-center justify-center">
+              <svg className="h-10 w-10 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest text-navy-950 dark:text-white">Document (PDF)</p>
+            <p className="text-[10px] text-slate-400 text-center max-w-[200px] truncate">{attachments[activeIndex].name}</p>
+          </div>
+        )}
+        {attachments.length > 1 && (
           <>
             <button
               type="button"
-              onClick={() => onChangeIndex((current) => (current - 1 + images.length) % images.length)}
+              onClick={() => onChangeIndex((current) => (current - 1 + attachments.length) % attachments.length)}
               className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 dark:bg-slate-900/90 flex items-center justify-center shadow-lg transition hover:scale-110"
             >
               ←
             </button>
             <button
               type="button"
-              onClick={() => onChangeIndex((current) => (current + 1) % images.length)}
+              onClick={() => onChangeIndex((current) => (current + 1) % attachments.length)}
               className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 dark:bg-slate-900/90 flex items-center justify-center shadow-lg transition hover:scale-110"
             >
               →
@@ -747,11 +745,11 @@ function ReportEvidenceCarousel({
         )}
       </div>
 
-      {images.length > 1 && (
+      {attachments.length > 1 && (
         <div className="mt-4 flex items-center justify-center gap-2">
-          {images.map((image, index) => (
+          {attachments.map((att, index) => (
             <button
-              key={`${image}-${index}`}
+              key={`${att.url}-${index}`}
               type="button"
               onClick={() => onChangeIndex(index)}
               className={`h-1.5 rounded-full transition-all ${
@@ -797,8 +795,8 @@ function PublicAttachmentPanel({ attachments }: { attachments: ReturnType<typeof
             </div>
 
             {attachment.kind === 'video' && (
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800">
-                <video controls src={attachment.url} className="w-full aspect-video bg-black" />
+              <div className="mt-3 flex items-center gap-3 p-4 rounded-xl border border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="text-xs font-medium text-slate-500">Gunakan live preview di atas untuk memutar video atau klik "LIHAT" untuk mengunduh.</div>
               </div>
             )}
             

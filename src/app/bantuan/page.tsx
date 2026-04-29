@@ -24,7 +24,7 @@ const faqItems = [
   },
   {
     question: 'Berapa lama laporan diproses?',
-    answer: 'Tim redaksi akan verifikasi awal maksimal 2x24 jam kerja. Pantau status via kode tiket di halaman Lacak Laporan.'
+    answer: 'Tim redaksi akan verifikasi awal maksimal 5x24 jam kerja. Pantau status via kode tiket di halaman Lacak Laporan.'
   }
 ];
 

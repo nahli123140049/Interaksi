@@ -537,7 +537,7 @@ export default function HomePage() {
                 },
                 { 
                   q: "Berapa lama laporan saya akan diproses?", 
-                  a: "Tim redaksi akan melakukan verifikasi awal maksimal 2x24 jam kerja. Anda bisa terus memantau status terkini menggunakan Kode Tiket Anda."
+                  a: "Tim redaksi akan melakukan verifikasi awal maksimal 5x24 jam kerja. Anda bisa terus memantau status terkini menggunakan Kode Tiket Anda."
                 },
                 { 
                   q: "Apakah semua laporan akan diterbitkan menjadi berita?", 
