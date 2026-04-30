@@ -137,6 +137,11 @@ export default function AdminPage() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
+  
+  // Login Rate Limiting
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState(0);
 
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -406,6 +411,13 @@ export default function AdminPage() {
     };
   }, []);
 
+  // Sync analytics when tab changes to 'analytics'
+  useEffect(() => {
+    if (currentTab === 'analytics') {
+      void loadAnalytics();
+    }
+  }, [currentTab]);
+
   const visibleReports = useMemo(() => {
     return reports.filter((report) => {
       const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
@@ -458,6 +470,12 @@ export default function AdminPage() {
 
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    
+    // Check lockout
+    if (lockoutUntil && Date.now() < lockoutUntil) {
+      return;
+    }
+
     setAuthError('');
     setLoading(true);
 
@@ -468,12 +486,37 @@ export default function AdminPage() {
       });
 
       if (error) {
-        setAuthError(error.message);
+        const newAttempts = loginAttempts + 1;
+        setLoginAttempts(newAttempts);
+        
+        if (newAttempts >= 5) {
+          const lockoutTime = Date.now() + 60000; // 60 seconds
+          setLockoutUntil(lockoutTime);
+          setCountdown(60);
+          setAuthError('Terlalu banyak percobaan login. Akun dikunci selama 60 detik.');
+        } else {
+          setAuthError(`${error.message} (Percobaan ${newAttempts}/5)`);
+        }
+      } else {
+        // Reset on success
+        setLoginAttempts(0);
+        setLockoutUntil(null);
       }
     } finally {
       setLoading(false);
     }
   };
+
+  // Countdown timer for lockout
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (countdown === 0 && lockoutUntil) {
+      setLockoutUntil(null);
+      setLoginAttempts(0);
+    }
+  }, [countdown, lockoutUntil]);
 
   const handleLogout = async () => {
     setAuthError('');
@@ -569,6 +612,9 @@ export default function AdminPage() {
         )
       );
       setSelectedReport({ ...selectedReport, status: cleanedStatus, additional_data: updatedAdditionalData });
+      
+      // Refresh analytics after status change
+      void loadAnalytics();
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Gagal update status laporan.');
     } finally {
@@ -605,6 +651,7 @@ export default function AdminPage() {
       setReports((current) => current.filter((r) => r.id !== reportId));
       setSelectedReport(null);
       setAuthError('Laporan berhasil dihapus.');
+      void loadAnalytics();
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Gagal menghapus laporan.');
     } finally {
@@ -951,10 +998,10 @@ export default function AdminPage() {
               )}
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full rounded-2xl bg-amber-500 py-4 text-sm font-black text-navy-950 transition hover:bg-amber-400 active:scale-95 shadow-xl shadow-amber-500/20"
+                disabled={loading || (countdown > 0)}
+                className="w-full rounded-2xl bg-amber-500 py-4 text-sm font-black text-navy-950 transition hover:bg-amber-400 active:scale-95 shadow-xl shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'AUTHORIZING...' : 'OPEN ACCESS'}
+                {loading ? 'AUTHORIZING...' : countdown > 0 ? `TUNGGU ${countdown}s` : 'OPEN ACCESS'}
               </button>
 
               <div className="flex justify-center pt-2">
@@ -1420,7 +1467,13 @@ export default function AdminPage() {
                         )}
                         
                         {/* Unified Eye Icon Overlay */}
-                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
+                        <a 
+                          href={att.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          download={att.kind === 'pdf' ? att.name : undefined}
+                          className="absolute inset-0 bg-navy-950/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm"
+                        >
                           <div className="rounded-full bg-white/20 p-4 border border-white/40">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
@@ -1583,10 +1636,11 @@ function AttachmentPanel({ attachments }: { attachments: ReturnType<typeof parse
                 <a
                   href={attachment.url}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
+                  download={attachment.kind === 'pdf' ? attachment.name : undefined}
                   className="shrink-0 rounded-full bg-navy-950 dark:bg-white px-5 py-2 text-[10px] font-black text-white dark:text-navy-950 transition-all hover:scale-105 active:scale-95 shadow-sm"
                 >
-                  LIHAT
+                  {attachment.kind === 'pdf' ? 'UNDUH PDF' : 'LIHAT'}
                 </a>
               </div>
             </div>
