@@ -64,15 +64,13 @@ function TrackerContent() {
 
     try {
       const { data, error } = await supabase
-        .from('reports')
-        .select('id, created_at, category, status, description, additional_data')
-        .eq('additional_data->>report_code', code)
-        .single();
+        .rpc('track_report_by_code', { p_code: code })
+        .maybeSingle();
 
       if (error || !data) {
         setErrorMsg('Kode tiket tidak ditemukan. Pastikan kode yang kamu masukkan benar.');
       } else {
-        setReportData(data);
+        setReportData(data as TrackedReport);
       }
     } catch {
       setErrorMsg('Terjadi kesalahan saat mencari tiket.');

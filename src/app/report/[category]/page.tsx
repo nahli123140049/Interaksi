@@ -130,6 +130,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
   const [toastConfig, setToastConfig] = useState({ message: '', type: 'success' as 'success' | 'error' | 'info' });
   const [isCopied, setIsCopied] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastSubmitTime, setLastSubmitTime] = useState(0);
 
   const updateField = <K extends keyof FieldMap>(field: K, value: FieldMap[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -160,6 +161,10 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
       return 'Jika diisi, opini minimal 10 karakter agar layak dikutip.';
     }
 
+    if (form.deskripsiMasalah.trim().length > 5000) {
+      return 'Deskripsi masalah terlalu panjang (maksimal 5000 karakter).';
+    }
+
     return '';
   };
 
@@ -184,6 +189,14 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
       return;
     }
 
+    // Submission Cooldown (30 seconds)
+    const now = Date.now();
+    if (now - lastSubmitTime < 30000) {
+      const waitTime = Math.ceil((30000 - (now - lastSubmitTime)) / 1000);
+      setError(`Harap tunggu ${waitTime} detik sebelum mengirim laporan lagi.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -202,6 +215,20 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
           const validationError = validateAttachmentFile(photo);
           if (validationError) {
             throw new Error(`${photo.name}: ${validationError}`);
+          }
+
+          // Server-side Magic Bytes Validation
+          const validationFormData = new FormData();
+          validationFormData.append('file', photo);
+          
+          const verifyResponse = await fetch('/api/validate-upload', {
+            method: 'POST',
+            body: validationFormData
+          });
+
+          if (!verifyResponse.ok) {
+            const errorData = await verifyResponse.json();
+            throw new Error(`File ${photo.name} ditolak: ${errorData.error}`);
           }
 
           const extension = photo.name.split('.').pop() ?? 'bin';
@@ -242,6 +269,7 @@ export default function ReportCategoryPage({ params }: ReportPageProps) {
         throw new Error(`Gagal menyimpan laporan: ${insertError.message}`);
       }
 
+      setLastSubmitTime(Date.now());
       setLastReportCode(reportCode);
       setShowSuccessModal(true);
       setIsCopied(false);
