@@ -18,30 +18,16 @@ async function LiveMetrics() {
 
   if (isSupabaseConfigured) {
     try {
-      const { data: analytics, error } = await supabase
-        .from('reports_analytics')
-        .select('*')
+      // Gunakan RPC aman (SECURITY DEFINER) — melewati RLS tanpa membocorkan data
+      const { data: raw, error } = await supabase
+        .rpc('get_public_metrics')
         .single();
 
-      if (!error && analytics) {
+      if (!error && raw) {
+        const metrics = raw as { total_reports: number; total_published: number; total_pending: number };
         data = {
-          totalLaporan: analytics.total_reports,
-          totalTerbit: analytics.published_count,
-        };
-      } else {
-        // Fallback to manual count if view is missing
-        const { count: totalLaporan } = await supabase
-          .from('reports')
-          .select('*', { count: 'exact', head: true });
-
-        const { count: totalTerbit } = await supabase
-          .from('reports')
-          .select('*', { count: 'exact', head: true })
-          .in('status', ['Telah Terbit', 'Arsip Internal']);
-
-        data = {
-          totalLaporan: totalLaporan ?? 0,
-          totalTerbit: totalTerbit ?? 0,
+          totalLaporan: metrics.total_reports ?? 0,
+          totalTerbit: metrics.total_published ?? 0,
         };
       }
     } catch (error) {
@@ -104,12 +90,12 @@ async function RecentReports() {
 
   if (isSupabaseConfigured) {
     try {
-      const { data } = await supabase
-        .from('reports')
-        .select('id, category, description, created_at, status, additional_data')
-        .order('created_at', { ascending: false })
-        .limit(3);
-      reports = data || [];
+      // Gunakan RPC aman — hanya mengembalikan kolom publik, tanpa data pribadi
+      const { data, error } = await supabase
+        .rpc('get_public_recent_reports', { p_limit: 3 });
+      if (!error) {
+        reports = data || [];
+      }
     } catch (error) {
       console.error('Error fetching recent reports:', error);
     }
