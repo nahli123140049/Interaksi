@@ -16,7 +16,7 @@ type PublicReport = {
   id: string;
   created_at: string;
   category: string;
-  prodi: string;
+  prodi?: string;
   privacy: string;
   description: string;
   evidence_url: string | null;
@@ -103,42 +103,17 @@ export default function PublicDashboardPage() {
         return;
       }
 
-      const withStatusResult = await supabase
-        .from('reports')
-        .select('id, created_at, category, prodi, privacy, description, evidence_url, status, additional_data')
-        .order('created_at', { ascending: false });
+      // Gunakan RPC aman (SECURITY DEFINER) — melewati RLS tanpa membocorkan data pribadi
+      const { data, error } = await supabase
+        .rpc('get_public_reports', { p_limit: 200, p_offset: 0 });
 
-      if (!withStatusResult.error) {
-        setReports((withStatusResult.data ?? []) as PublicReport[]);
+      if (error) {
+        setError(error.message);
         setLoading(false);
         return;
       }
 
-      const missingStatus = /column\s+reports\.status\s+does not exist/i.test(withStatusResult.error.message);
-      if (!missingStatus) {
-        setError(withStatusResult.error.message);
-        setLoading(false);
-        return;
-      }
-
-      const withoutStatusResult = await supabase
-        .from('reports')
-        .select('id, created_at, category, prodi, privacy, description, evidence_url, additional_data')
-        .order('created_at', { ascending: false });
-
-      if (withoutStatusResult.error) {
-        setError(withoutStatusResult.error.message);
-        setLoading(false);
-        return;
-      }
-
-      const normalizedReports = (withoutStatusResult.data ?? []).map((row) => ({
-        ...(row as Omit<PublicReport, 'status'>),
-        status: 'Menunggu Verifikasi'
-      }));
-
-      setReports(normalizedReports as PublicReport[]);
-      setError('Ada pembaruan sistem yang belum lengkap. Data tetap bisa dibaca, tetapi beberapa detail pembaruan belum tampil penuh.');
+      setReports((data ?? []) as PublicReport[]);
       setLoading(false);
     };
 
@@ -151,7 +126,6 @@ export default function PublicDashboardPage() {
       const searchText = getReportSearchText([
         parseReportCode(report.additional_data),
         getReportCategoryTitle(report.category),
-        report.prodi,
         report.description,
         report.status,
         report.privacy
@@ -495,8 +469,6 @@ export default function PublicDashboardPage() {
                       Lihat Detail Arti Status
                     </button>
                   </div>
-
-                  <InfoRow label="Program Studi / Unit" value={selectedReport.prodi || '-'} />
                   
                   {getRedaksiNote(selectedReport.additional_data) && (
                     <div className="rounded-[1.5rem] border border-amber-100 bg-amber-50/50 dark:border-amber-900/30 dark:bg-amber-950/20 p-6">
